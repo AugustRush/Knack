@@ -63,31 +63,42 @@ KnackPiece *KnackGetPieceAtLoc(KnackMap *map, uint32_t loc) {
     return map->pieces + loc;
 }
 
-KnackPiece *KnackCreatePieceAtLoc(KnackMap *map, uint32_t loc) {
-    map->header->pieceCount += 1;
+KnackPiece *KnackCreateNewPiece(KnackMap *map) {
+    uint32_t afterUsed = map->header->pieceCount + 1;
     if (map->header->pieceCount * KNACK_NODE_SIZE + map->header->pieceStart > map->header->contentStart) {
         printf("need to extend.");
     }
-    KnackPiece *piece = map->pieces + loc;
+    //
+    map->header->pieceCount = afterUsed;
+    //
+    KnackPiece *piece = map->pieces + afterUsed - 1;
     piece->count = 0;
-    piece->loc = loc;
+    piece->loc = afterUsed - 1;
+    
     return piece;
 }
 
-void debugPrint(KnackMap *map) {
-    if (map != NULL) {
-        for (int i = 0; i < map->header->pieceCount; i++) {
-            KnackPiece *piece = KnackGetPieceAtLoc(map, i);
-            printf("level:-%d  ",i);
-            for (int j = 0; j < piece->count; j++) {
-                KnackNode node = piece->nodes[j];
-                printf("%d ", node.hash);
+void _KnackDebugPrint(KnackMap *map, KnackPiece *head) {
+    if (map != NULL && head->count > 0) {
+        printf("level-%d:",head->loc);
+        for (int i = 0; i < head->count; i++) {
+            printf(" %d",head->nodes[i].hash);
+        }
+        printf("\n");
+        
+        for (int i = 0; i <= head->count; i++) {
+            uint32_t index = head->children[i];
+            if (index != head->loc) {
+                KnackPiece *piece = KnackGetPieceAtLoc(map, head->children[i]);
+                _KnackDebugPrint(map, piece);
             }
-            printf("\n");
         }
     }
-    
-    printf("#######################\n");
+}
+
+void KnackDebugPrint(KnackMap *map, KnackPiece *head) {
+    _KnackDebugPrint(map,head);
+    printf("====================\n");
 }
 
 KnackMap *KnackMapInit(void) {
@@ -108,65 +119,107 @@ KnackMap *KnackMapInit(void) {
     return map;
 }
 
-void KnackSplitLeaf(KnackMap *map,KnackPiece *parent, uint32_t index, KnackPiece *current) {
-    KnackPiece *newPiece = KnackCreatePieceAtLoc(map, map->header->pieceCount);
-    newPiece->isLeaf = current->isLeaf;
-    newPiece->count = KNACK_DEGREE - 1;
-    //
-    memcpy(newPiece->nodes, current->nodes + KNACK_DEGREE, newPiece->count);
-    //
-    if (!current->isLeaf) {
-        memcpy(newPiece->nodes, current->nodes + KNACK_DEGREE, KNACK_DEGREE);
+KnackPiece *KnackFindSibling(KnackMap *map,KnackPiece *parent) {
+    KnackPiece *piece = NULL;
+    if (parent != NULL) {
+        for (int i = 0; i <= parent->count; i++) {
+            KnackPiece *current = KnackGetPieceAtLoc(map, parent->children[i]);
+            if (current->count < KNACK_NODE_MAX) {
+                piece = current;
+                break;
+            }
+        }
     }
+    return piece;
+}
+
+void KnackSplitLeaf(KnackMap *map,KnackPiece *parent, uint32_t index, KnackPiece *current) {
+//    KnackPiece *newPiece = KnackCreateNewPiece(map);
+//    newPiece->isLeaf = current->isLeaf;
+//    newPiece->count = KNACK_DEGREE - 1;
+//    //
+//    memcpy(newPiece->nodes, current->nodes + KNACK_DEGREE, newPiece->count);
+//    //
+//    if (!current->isLeaf) {
+//        memcpy(newPiece->nodes, current->nodes + KNACK_DEGREE, KNACK_DEGREE);
+//    }
+//
+//    current->count = KNACK_DEGREE - 1;
+//
+//    for (int i = parent->count; i > index; --i) {
+//        parent->children[i + 1] = parent->children[i];
+//    }
+//
+//    parent->children[index + 1] = newPiece->loc;
+//    int moveCount = parent->count - index - 1;
+//    if (moveCount > 0) {
+//        memmove(parent->nodes + index + 1, parent->nodes + index, moveCount * KNACK_NODE_SIZE);
+//    }
+//    //
+//    memcpy(parent->nodes + index, current->nodes + KNACK_DEGREE - 1, KNACK_NODE_SIZE);
+//    parent->count += 1;
     
-    current->count = KNACK_DEGREE - 1;
+    KnackPiece *newPiece = KnackCreateNewPiece(map);
+    newPiece->isLeaf = current->isLeaf;
+    
+    int mid = current->count / 2;
+    int copyCount = current->count - mid - 1;
+    memcpy(newPiece->nodes, current->nodes + mid + 1, copyCount * KNACK_NODE_SIZE);
+    newPiece->count = copyCount;
+    //
+//    if (!current->isLeaf) {
+//        memcpy(newPiece->nodes, current->nodes + KNACK_DEGREE, KNACK_DEGREE);
+//    }
+    
+    current->count -= (copyCount + 1);
     
     for (int i = parent->count; i > index; --i) {
         parent->children[i + 1] = parent->children[i];
     }
     
     parent->children[index + 1] = newPiece->loc;
-    int moveCount = parent->count - index - 1;
+    int moveCount = parent->count - index;
     if (moveCount > 0) {
         memmove(parent->nodes + index + 1, parent->nodes + index, moveCount * KNACK_NODE_SIZE);
     }
     //
-    memcpy(parent->nodes + index, current->nodes + KNACK_DEGREE - 1, KNACK_NODE_SIZE);
+    memcpy(parent->nodes + index, current->nodes + mid, KNACK_NODE_SIZE);
     parent->count += 1;
-    
-//    current->count -= 1;
 }
 
-void KnackInsertNotFull(KnackMap *map, KnackPiece *head, uint32_t hash, uint32_t keyLength, uint32_t valueLength, uint32_t contentOffset) {
-    if (head->isLeaf) {
+void KnackInsertNotFull(KnackMap *map, KnackPiece *parent, KnackPiece *current, uint32_t hash, uint32_t keyLength, uint32_t valueLength, uint32_t contentOffset) {
+    if (current->isLeaf) {
         int i = 0;
-        while (i < head->count && hash > head->nodes[i].hash) {
+        while (i < current->count && hash > current->nodes[i].hash) {
             i++;
         }
-        int copyCount = head->count - i;
+        int copyCount = current->count - i;
         if (copyCount > 0) {
-            memmove(head->nodes + i + 1, head->nodes + i, copyCount *KNACK_NODE_SIZE);
+            memmove(current->nodes + i + 1, current->nodes + i, copyCount *KNACK_NODE_SIZE);
         }
-        KnackNode *node = head->nodes + i;
+        KnackNode *node = current->nodes + i;
         node->hash = hash;
         node->keyLength = keyLength;
         node->valueLength = valueLength;
         node->contentOffset = contentOffset;
-        head->count += 1;
+        current->count += 1;
     } else {
         int i = 0;
-        while (i < head->count && hash > head->nodes[i].hash) {
+        while (i < current->count && hash > current->nodes[i].hash) {
             i++;
         }
-        KnackPiece *leaf = KnackGetPieceAtLoc(map, head->children[i]);
+        KnackPiece *leaf = KnackGetPieceAtLoc(map, current->children[i]);
         if (leaf->count == KNACK_NODE_MAX) {
-            KnackSplitLeaf(map,head, i, leaf);
-            if (hash > head->nodes[i].hash) {
+            
+//            KnackPiece *sibling = KnackFindSibling(map, current);
+            
+            KnackSplitLeaf(map,current, i, leaf);
+            if (hash > current->nodes[i].hash) {
                 ++i;
-                leaf = KnackGetPieceAtLoc(map, head->children[i]);
+                leaf = KnackGetPieceAtLoc(map, current->children[i]);
             }
         }
-        KnackInsertNotFull(map, leaf, hash, keyLength, valueLength, contentOffset);
+        KnackInsertNotFull(map, current, leaf, hash, keyLength, valueLength, contentOffset);
     }
 }
 
@@ -174,14 +227,14 @@ void KnackInsertNotFull(KnackMap *map, KnackPiece *head, uint32_t hash, uint32_t
 void KnackMapPut(KnackMap *map, const void *key, uint32_t keyLength, const void *value, uint32_t valueLength, uint8_t type) {
     if (map != NULL) {
         uint32_t hash = XXH32(key, keyLength, 0);
-        static uint32_t hs = 0;
-        hash = hs++;
+        static uint32_t hs = 30;
+        hash = hs--;
         
-        debugPrint(map);
+        KnackDebugPrint(map,map->headPiece);
         //
         KnackPiece *root = map->headPiece;
         if (root->count == KNACK_NODE_MAX) {
-            KnackPiece *newRoot = KnackCreatePieceAtLoc(map, map->header->pieceCount);
+            KnackPiece *newRoot = KnackCreateNewPiece(map);
             newRoot->isLeaf = 0;
             newRoot->count = 0;
             newRoot->children[0] = root->loc;
@@ -190,9 +243,9 @@ void KnackMapPut(KnackMap *map, const void *key, uint32_t keyLength, const void 
             map->headPiece = newRoot;
             //
             KnackSplitLeaf(map, newRoot, 0, root);
-            KnackInsertNotFull(map, newRoot, hash, keyLength, valueLength, map->header->contentUsed);
+            KnackInsertNotFull(map, NULL, newRoot, hash, keyLength, valueLength, map->header->contentUsed);
         } else {
-            KnackInsertNotFull(map, root, hash, keyLength, valueLength, map->header->contentUsed);
+            KnackInsertNotFull(map, NULL, root, hash, keyLength, valueLength, map->header->contentUsed);
         }
         //insert contents
         

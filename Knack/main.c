@@ -13,7 +13,7 @@ int main(int argc, const char * argv[]) {
     // insert code here...
     printf("Hello, World!\n");
     KnackMap *map = KnackMapInit();
-    for (int i = 0; i < 50; i++) {
+    for (int i = 0; i < 30; i++) {
         KnackMapPut(map, &i, 4, &i, 4, 10);
     }
     return 0;
