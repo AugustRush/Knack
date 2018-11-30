@@ -10,6 +10,7 @@
 #import "Knack.h"
 #include <sys/time.h>
 #include <inttypes.h>
+#include <string.h>
 #include "xxhash/xxhash.h"
 
 void printTime()      //直接调用这个函数就行了，返回值最好是int64_t，long long应该也可以
@@ -31,7 +32,12 @@ int main(int argc, const char * argv[]) {
     }
     printTime();
     for (int i = 0; i < testNum; i++) {
-        KnackMapGet(map, &i, 4);
+        uint32_t length = 0;
+        uint8_t type = 0;
+        const void *value = KnackMapGet(map, &i, 4, &length, &type);
+        uint32_t v = 0;
+        memcpy(&v, value, 4);
+        printf("%u  %d  %u\n",v,type,length);
     }
     printTime();
     return 0;

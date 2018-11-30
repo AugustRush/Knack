@@ -23,15 +23,9 @@ extern "C" {
  
     typedef struct KnackMap KnackMap;
     
-    typedef struct KnackResult {
-        uint8_t type;
-        uint32_t valueLength;
-        void *value;
-    } KnackResult;
-    
     KnackMap *KnackMapInit(void);
     void KnackMapPut(KnackMap *map, const void *key, uint32_t keyLength, const void *value, uint32_t valueLength, int8_t type);
-    const KnackResult *KnackMapGet(KnackMap *map, const void *key, uint32_t keyLength);
+    const void * KnackMapGet(KnackMap *map, const void *key, uint32_t keyLength, uint32_t *valueLength, uint8_t *type);
     
 #ifdef __cplusplus
 }

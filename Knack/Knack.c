@@ -14,10 +14,10 @@
 #define KNACK_ORDER (KNACK_DEGREE * 2)
 #define KNACK_NODE_MAX (KNACK_ORDER - 1)
 #define PAGE_SIZE 4096
-#define KNACK_DEBUG 0
+#define KNACK_DEBUG 1
 
 
-typedef int8_t Byte;
+typedef uint8_t Byte;
 
 typedef struct __attribute__((__packed__)) KnackNode {
     uint32_t hash;
@@ -30,7 +30,6 @@ typedef struct __attribute__((__packed__)) KnackPiece {
     unsigned int count : 7;
     unsigned int isLeaf : 1;
     uint32_t loc;
-//    uint32_t super_piece_loc;
     KnackNode nodes[KNACK_ORDER - 1];
     uint32_t children[KNACK_ORDER];
     
@@ -80,17 +79,6 @@ KnackPiece *KnackCreateNewPiece(KnackMap *map) {
 
 void _KnackDebugPrint(KnackMap *map, KnackPiece *head) {
     
-//    if (map != NULL) {
-//        for (int i = 0; i < map->header->pieceCount; i++) {
-//            KnackPiece *piece = KnackGetPieceAtLoc(map, i);
-//            printf("level:-%d  ",i);
-//            for (int j = 0; j < piece->count; j++) {
-//                KnackNode node = piece->nodes[j];
-//                printf("%u ", node.hash);
-//            }
-//            printf("\n");
-//        }
-//    }
     if (map != NULL && head->count > 0) {
         printf("level-%d:",head->loc);
         for (int i = 0; i < head->count; i++) {
@@ -171,13 +159,13 @@ int KnackWriteContent(KnackMap *map,const void *key, uint32_t keyLength, const v
     return bytesCount;
 }
 
-KnackResult * KnackReadResult(KnackMap *map, uint32_t keyLength, uint32_t valueLength, uint32_t contentOffset) {
-    Byte *contents = map->contents + contentOffset;
-    void *key = contents;
-    int8_t *type = contents + keyLength;
-    void *value = contents + keyLength + 1;
-    
-    return NULL;
+const void * KnackReadContent(const KnackMap *map, const KnackNode *node, uint32_t *valueLength, uint8_t *type) {
+    Byte *contents = map->contents + node->contentOffset;
+    //
+    memcpy(type, contents + node->keyLength, 1);
+    *valueLength = node->valueLength;
+    //
+    return contents + node->keyLength + 1;
 }
 
 void KnackInsertNotFull(KnackMap *map, KnackPiece *parent, KnackPiece *current, uint32_t hash, uint32_t keyLength, uint32_t valueLength, uint32_t contentOffset) {
@@ -266,9 +254,9 @@ void KnackMapPut(KnackMap *map, const void *key, uint32_t keyLength, const void 
     if (map != NULL) {
         uint32_t hash = XXH32(key, keyLength, 0);
 #if KNACK_DEBUG
-        static uint32_t hs = 200;
+        static uint32_t hs = 5000;
         hash = hs--;
-        KnackDebugPrint(map,map->headPiece);
+//        KnackDebugPrint(map,map->headPiece);
 #endif
         KnackPiece *root = map->headPiece;
         if (root->count == KNACK_NODE_MAX) {
@@ -293,20 +281,20 @@ void KnackMapPut(KnackMap *map, const void *key, uint32_t keyLength, const void 
     }
 }
 
-const KnackResult *KnackMapGet(KnackMap *map, const void *key, uint32_t keyLength) {
-    KnackResult *result = NULL;
+const void * KnackMapGet(KnackMap *map, const void *key, uint32_t keyLength, uint32_t *valueLength, uint8_t *type) {
     if (map != NULL) {
         uint32_t hash = XXH32(key, keyLength, 0);
 #if KNACK_DEBUG
-        static uint32_t hs = 200;
+        static uint32_t hs = 5000;
         hash = hs--;
-        KnackDebugPrint(map,map->headPiece);
-        printf("hash: %u  ",hash);
+//        KnackDebugPrint(map,map->headPiece);
+//        printf("hash: %u  ",hash);
 #endif
         KnackNode *node = KnackSearchNode(map, map->headPiece, hash);
         if (node != NULL) {
-            printf("%u \n",node->hash);
+//            printf("%u \n",node->hash);
+            return KnackReadContent(map, node, valueLength, type);
         }
     }
-    return result;
+    return NULL;
 }
