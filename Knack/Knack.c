@@ -96,8 +96,8 @@ void _KnackDebugPrint(KnackMap *map, KnackPiece *head) {
     }
 }
 
-void KnackDebugPrint(KnackMap *map, KnackPiece *head) {
-    _KnackDebugPrint(map,head);
+void KnackDebugPrint(KnackMap *map) {
+    _KnackDebugPrint(map,map->headPiece);
     printf("====================\n");
 }
 
@@ -118,8 +118,6 @@ KnackPiece *KnackFindSibling(KnackMap *map,KnackPiece *parent) {
 void KnackMoveNodeToNeighboor(KnackMap *map,KnackPiece *sibling, uint32_t sibIdx,KnackPiece *parent, KnackPiece *current, uint32_t curIdx) {
     if (sibIdx < curIdx) {
         // parent to sibling
-//        memcpy(sibling->nodes + sibling->count, parent->nodes + sibIdx, KNACK_NODE_SIZE);
-//        sibling->count += 1;
         KnackPiece *piece = sibling;
         for (int i = sibIdx; i < curIdx; i++) {
             memcpy(piece->nodes + piece->count, parent->nodes + i, KNACK_NODE_SIZE);
@@ -132,7 +130,6 @@ void KnackMoveNodeToNeighboor(KnackMap *map,KnackPiece *sibling, uint32_t sibIdx
             piece = leaf;
         }
         current->count -= 1;
-//        memmove(current->nodes, current->nodes + 1, current->count * KNACK_NODE_SIZE);
         sibling->count += 1;
     } else {
         memmove(sibling->nodes + 1, sibling->nodes, sibling->count * KNACK_NODE_SIZE);
@@ -280,7 +277,7 @@ KnackNode *KnackSearchNode(KnackMap *map, KnackPiece *root, uint32_t hash) {
 }
 
 KnackMap *KnackMapInit(void) {
-    uint32_t totalSize = 200 * PAGE_SIZE;
+    uint32_t totalSize = 2 * PAGE_SIZE;
     KnackMap *map = malloc(sizeof(KnackMap));
     map->memory = calloc(1, totalSize);
     map->header = (KnackHeader *)map->memory;
@@ -289,7 +286,7 @@ KnackMap *KnackMapInit(void) {
     map->header->headLoc = 0;
     map->header->pieceStart = sizeof(KnackHeader);
     map->header->pieceCount = 1;
-    map->header->contentStart = 100 * PAGE_SIZE;
+    map->header->contentStart = PAGE_SIZE;
     map->header->contentUsed = 0;
     map->pieces = (KnackPiece *)(map->memory + map->header->pieceStart);
     map->headPiece = map->pieces + map->header->headLoc;
@@ -305,7 +302,7 @@ void KnackMapPut(KnackMap *map, const void *key, uint32_t keyLength, const void 
 #if KNACK_DEBUG
         static uint32_t hs = 0;
         hash = hs++;
-//        KnackDebugPrint(map,map->headPiece);
+//        KnackDebugPrint(map);
 #endif
         KnackPiece *root = map->headPiece;
         if (root->count == KNACK_NODE_MAX) {
@@ -336,7 +333,7 @@ const void * KnackMapGet(KnackMap *map, const void *key, uint32_t keyLength, uin
 #if KNACK_DEBUG
         static uint32_t hs = 0;
         hash = hs++;
-//        KnackDebugPrint(map,map->headPiece);
+//        KnackDebugPrint(map);
 //        printf("hash: %u  ",hash);
 #endif
         KnackNode *node = KnackSearchNode(map, map->headPiece, hash);

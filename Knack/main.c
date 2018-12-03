@@ -39,5 +39,7 @@ int main(int argc, const char * argv[]) {
 //        printf("%u  %d  %u\n",v,type,length);
     }
     printTime();
+    
+    KnackDebugPrint(map);
     return 0;
 }
