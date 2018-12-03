@@ -25,7 +25,7 @@ int main(int argc, const char * argv[]) {
     KnackMap *map = KnackMapInit();
     
     printTime();
-    uint32_t testNum = 50;
+    uint32_t testNum = 100000;
     for (int i = 0; i < testNum; i++) {
         KnackMapPut(map, &i, 4, &i, 4, 10);
     }
@@ -36,7 +36,7 @@ int main(int argc, const char * argv[]) {
         const void *value = KnackMapGet(map, &i, 4, &length, &type);
         uint32_t v = 0;
         memcpy(&v, value, 4);
-        printf("%u  %d  %u\n",v,type,length);
+//        printf("%u  %d  %u\n",v,type,length);
     }
     printTime();
     

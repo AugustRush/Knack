@@ -41,7 +41,6 @@ typedef struct __attribute__((__packed__)) KnackPiece {
 
 typedef struct __attribute__((__packed__)) KnackHeader {
     uint32_t hash;
-    int fd;
     uint32_t nodeCount;
     uint64_t totalSize;
     uint32_t headLoc;
@@ -62,6 +61,7 @@ typedef struct KnackMap {
 
 
 const size_t KNACK_NODE_SIZE = sizeof(KnackNode);
+const size_t KNACK_PIECE_SIZE = sizeof(KnackPiece);
 
 /*+++++++++++++++++++++++++++++++++++++++++++++util funcs++++++++++++++++++++++++++++++++++++*/
 
@@ -94,6 +94,7 @@ void KnackMMPFile(KnackMap *map,const char *path, uint64_t minimalSize) {
             map->header = (KnackHeader *)map->memory;
             uint32_t invalidFileHash = XXH32("KNAC_HEADER", 11, 0);
             if (map->header->hash != invalidFileHash) {
+                memset(ptr, 0, size);
                 map->header->hash = invalidFileHash;
                 map->header->totalSize = size;
                 map->header->nodeCount = 0;
@@ -119,21 +120,43 @@ void KnackMMPFile(KnackMap *map,const char *path, uint64_t minimalSize) {
     }
 }
 
-void KnackFtruncate(KnackMap *map, uint64_t size) {
-    if (ftruncate(map->fd, size) != 0) {
-        KnackAssert("can not truncate file size.");
+/*+++++++++++++++++++++++++++++++++++++++++++++实现b+tree 连续内存存储++++++++++++++++++++++++++++++++++++*/
+
+void KnackMapReset(KnackMap *map, void *memory, uint64_t size) {
+    if (memory != NULL) {
+        map->memory = memory;
+        map->header = (KnackHeader *)map->memory;
+        map->header->totalSize = size;
+        map->pieces = (KnackPiece *)(map->memory + map->header->pieceStart);
+        map->headPiece = map->pieces + map->header->headLoc;
+        map->headPiece->loc = map->header->headLoc;
+        map->contents = map->memory + map->header->contentStart;
     }
 }
 
-/*+++++++++++++++++++++++++++++++++++++++++++++实现b+tree 连续存储++++++++++++++++++++++++++++++++++++*/
 KnackPiece *KnackGetPieceAtLoc(KnackMap *map, uint32_t loc) {
     return map->pieces + loc;
 }
 
 KnackPiece *KnackCreateNewPiece(KnackMap *map) {
     uint32_t afterUsed = map->header->pieceCount + 1;
-    if (map->header->pieceCount * KNACK_NODE_SIZE + map->header->pieceStart > map->header->contentStart) {
-        printf("need to extend.");
+    uint32_t pieceNeedSize = afterUsed * KNACK_PIECE_SIZE + map->header->pieceStart;
+    if (pieceNeedSize > map->header->contentStart) {
+        uint64_t totalSize = map->header->totalSize + PAGE_SIZE;
+        if (ftruncate(map->fd, totalSize) != 0) {
+            KnackAssert("can not extend file!\n");
+        }
+        /*unmap之后会导致之前所有的指针指向失效，需要重新赋值*/
+        munmap(map->memory, map->header->totalSize);
+        void *memory = mmap(NULL, totalSize, PROT_READ | PROT_WRITE, MAP_SHARED, map->fd, 0);
+        KnackMapReset(map, memory, totalSize);
+        // move contents to new location
+        memmove(map->memory + map->header->contentStart + PAGE_SIZE, map->memory + map->header->contentStart, map->header->contentUsed);
+        // set old contents to 0
+        memset(map->memory + map->header->contentStart, 0, PAGE_SIZE);
+        //change map ptr
+        map->header->contentStart += PAGE_SIZE;
+        map->contents = map->memory + map->header->contentStart;
     }
     //
     map->header->pieceCount = afterUsed;
@@ -218,9 +241,11 @@ void KnackMoveNodeToNeighboor(KnackMap *map,KnackPiece *sibling, uint32_t sibIdx
     }
 }
 
-void KnackSplitLeaf(KnackMap *map,KnackPiece *parent, uint32_t index, KnackPiece *current) {
+void KnackSplitLeaf(KnackMap *map,uint32_t parentLoc, uint32_t index, uint32_t currentLoc) {
     
     KnackPiece *newPiece = KnackCreateNewPiece(map);
+    KnackPiece *parent = KnackGetPieceAtLoc(map, parentLoc);
+    KnackPiece *current = KnackGetPieceAtLoc(map, currentLoc);
     newPiece->isLeaf = current->isLeaf;
     
     int mid = current->count / 2;
@@ -252,8 +277,15 @@ void KnackSplitLeaf(KnackMap *map,KnackPiece *parent, uint32_t index, KnackPiece
 //return all raw data take bytes
 int KnackWriteContent(KnackMap *map,const void *key, uint32_t keyLength, const void *value, uint32_t valueLength, uint8_t type, uint32_t contentOffset) {
     int bytesCount = keyLength + valueLength + 1;
-    if (map->header->contentStart + contentOffset + bytesCount > map->header->totalSize) {
-        printf("contents is has no space to write\n");
+    uint64_t afterUsed = map->header->contentStart + contentOffset + bytesCount;
+    if (afterUsed > map->header->totalSize) {
+        afterUsed = map->header->totalSize + (bytesCount / PAGE_SIZE + 1) * PAGE_SIZE;
+        if (ftruncate(map->fd, afterUsed) != 0) {
+            KnackAssert("can not extend file capacity!");
+        }
+        munmap(map->memory, map->header->totalSize);
+        void *memory = mmap(NULL, afterUsed, PROT_READ | PROT_WRITE, MAP_SHARED, map->fd, 0);
+        KnackMapReset(map, memory, afterUsed);
     }
     memcpy(map->contents + contentOffset, key, keyLength);
     map->contents[contentOffset + keyLength] = type;
@@ -291,6 +323,7 @@ void KnackInsertNotFull(KnackMap *map, KnackPiece *parent, KnackPiece *current, 
         while (i < current->count && hash > current->nodes[i].hash) {
             i++;
         }
+        
         KnackPiece *leaf = KnackGetPieceAtLoc(map, current->children[i]);
         if (leaf->count == KNACK_NODE_MAX) {
             
@@ -308,7 +341,9 @@ void KnackInsertNotFull(KnackMap *map, KnackPiece *parent, KnackPiece *current, 
             if (sibling != NULL) {
                 KnackMoveNodeToNeighboor(map, sibling, siblingIndex, current, leaf, i);
             } else {
-                KnackSplitLeaf(map,current, i, leaf);
+                uint32_t parentLoc = current->loc;
+                KnackSplitLeaf(map,parentLoc, i, leaf->loc);
+                current = KnackGetPieceAtLoc(map, parentLoc);
                 if (hash > current->nodes[i].hash) {
                     ++i;
                     leaf = KnackGetPieceAtLoc(map, current->children[i]);
@@ -361,6 +396,12 @@ void KnackMapPut(KnackMap *map, const void *key, uint32_t keyLength, const void 
 //        KnackDebugPrint(map);
 #endif
         KnackPiece *root = map->headPiece;
+        
+        KnackNode *existedNode = KnackSearchNode(map, map->headPiece, hash);
+        if (existedNode != NULL) {
+            return;
+        }
+        
         if (root->count == KNACK_NODE_MAX) {
             KnackPiece *newRoot = KnackCreateNewPiece(map);
             newRoot->isLeaf = 0;
@@ -370,7 +411,7 @@ void KnackMapPut(KnackMap *map, const void *key, uint32_t keyLength, const void 
             map->header->headLoc = newRoot->loc;
             map->headPiece = newRoot;
             //
-            KnackSplitLeaf(map, newRoot, 0, root);
+            KnackSplitLeaf(map, newRoot->loc, 0, root->loc);
             KnackInsertNotFull(map, NULL, newRoot, hash, keyLength, valueLength, map->header->contentUsed);
         } else {
             KnackInsertNotFull(map, NULL, root, hash, keyLength, valueLength, map->header->contentUsed);
