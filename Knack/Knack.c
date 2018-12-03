@@ -9,6 +9,11 @@
 #include "Knack.h"
 #include "xxhash/xxhash.h"
 #include <string.h>
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #define KNACK_ORDER 6 //必须为偶数
 #define KNACK_NODE_MAX (KNACK_ORDER - 1)
@@ -35,8 +40,10 @@ typedef struct __attribute__((__packed__)) KnackPiece {
 } KnackPiece;
 
 typedef struct __attribute__((__packed__)) KnackHeader {
+    uint32_t hash;
+    int fd;
     uint32_t nodeCount;
-    uint32_t totalSize;
+    uint64_t totalSize;
     uint32_t headLoc;
     uint32_t pieceStart;
     uint32_t pieceCount;
@@ -45,6 +52,7 @@ typedef struct __attribute__((__packed__)) KnackHeader {
 } KnackHeader;
 
 typedef struct KnackMap {
+    int fd;
     Byte *memory;
     KnackHeader *header;
     KnackPiece *pieces;
@@ -55,8 +63,69 @@ typedef struct KnackMap {
 
 const size_t KNACK_NODE_SIZE = sizeof(KnackNode);
 
+/*+++++++++++++++++++++++++++++++++++++++++++++util funcs++++++++++++++++++++++++++++++++++++*/
 
+void KnackAssert(const char *error) {
+    printf("%s\n",error);
+    assert(0);
+}
 
+/*+++++++++++++++++++++++++++++++++++++++++++++文件操作++++++++++++++++++++++++++++++++++++*/
+void KnackMMPFile(KnackMap *map,const char *path, uint64_t minimalSize) {
+    int fd = open(path, O_RDWR | O_CREAT, S_IRWXU);
+    uint64_t size = 0;
+    if (fd < 0) {
+        printf("can not open file!\n");
+        assert(0);
+    } else {
+        struct stat st = {};
+        if (fstat(fd, &st) != -1) {
+            size = st.st_size;
+            if (size < minimalSize || size % PAGE_SIZE != 0) {
+                size = (size / PAGE_SIZE + 1) * PAGE_SIZE;
+                size = size > minimalSize ? size : minimalSize;
+                if (ftruncate(fd, size) != 0) {
+                    KnackAssert("can not truncate file size.");
+                }
+            }
+            void *ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+            map->fd = fd;
+            map->memory = ptr;
+            map->header = (KnackHeader *)map->memory;
+            uint32_t invalidFileHash = XXH32("KNAC_HEADER", 11, 0);
+            if (map->header->hash != invalidFileHash) {
+                map->header->hash = invalidFileHash;
+                map->header->totalSize = size;
+                map->header->nodeCount = 0;
+                map->header->headLoc = 0;
+                map->header->pieceStart = sizeof(KnackHeader);
+                map->header->pieceCount = 1;
+                map->header->contentStart = PAGE_SIZE;
+                map->header->contentUsed = 0;
+                map->pieces = (KnackPiece *)(map->memory + map->header->pieceStart);
+                map->headPiece = map->pieces + map->header->headLoc;
+                map->headPiece->isLeaf = 1;
+                map->headPiece->loc = map->header->headLoc;
+                map->contents = map->memory + map->header->contentStart;
+            } else {
+                map->pieces = (KnackPiece *)(map->memory + map->header->pieceStart);
+                map->headPiece = map->pieces + map->header->headLoc;
+                map->headPiece->loc = map->header->headLoc;
+                map->contents = map->memory + map->header->contentStart;
+            }
+        } else {
+            KnackAssert("file state exception.");
+        }
+    }
+}
+
+void KnackFtruncate(KnackMap *map, uint64_t size) {
+    if (ftruncate(map->fd, size) != 0) {
+        KnackAssert("can not truncate file size.");
+    }
+}
+
+/*+++++++++++++++++++++++++++++++++++++++++++++实现b+tree 连续存储++++++++++++++++++++++++++++++++++++*/
 KnackPiece *KnackGetPieceAtLoc(KnackMap *map, uint32_t loc) {
     return map->pieces + loc;
 }
@@ -277,22 +346,9 @@ KnackNode *KnackSearchNode(KnackMap *map, KnackPiece *root, uint32_t hash) {
 }
 
 KnackMap *KnackMapInit(void) {
-    uint32_t totalSize = 2 * PAGE_SIZE;
+    uint32_t size = 2 * PAGE_SIZE;
     KnackMap *map = malloc(sizeof(KnackMap));
-    map->memory = calloc(1, totalSize);
-    map->header = (KnackHeader *)map->memory;
-    map->header->totalSize = totalSize;
-    map->header->nodeCount = 0;
-    map->header->headLoc = 0;
-    map->header->pieceStart = sizeof(KnackHeader);
-    map->header->pieceCount = 1;
-    map->header->contentStart = PAGE_SIZE;
-    map->header->contentUsed = 0;
-    map->pieces = (KnackPiece *)(map->memory + map->header->pieceStart);
-    map->headPiece = map->pieces + map->header->headLoc;
-    map->headPiece->isLeaf = 1;
-    map->headPiece->loc = map->header->headLoc;
-    map->contents = map->memory + map->header->contentStart;
+    KnackMMPFile(map, "/Users/pingweiliu/Desktop/KNACK_DEF",size);
     return map;
 }
 
