@@ -25,7 +25,7 @@ int main(int argc, const char * argv[]) {
     KnackMap *map = KnackMapInit();
     
     printTime();
-    uint32_t testNum = 100000;
+    uint32_t testNum = 1000000;
     for (int i = 0; i < testNum; i++) {
         KnackMapPut(map, &i, 4, &i, 4, 10);
     }

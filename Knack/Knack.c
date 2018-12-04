@@ -143,20 +143,26 @@ KnackPiece *KnackCreateNewPiece(KnackMap *map) {
     uint32_t afterUsed = map->header->pieceCount + 1;
     uint32_t pieceNeedSize = afterUsed * KNACK_PIECE_SIZE + map->header->pieceStart;
     if (pieceNeedSize > map->header->contentStart) {
-        uint64_t totalSize = map->header->totalSize + PAGE_SIZE;
+        uint64_t prevSize = map->header->totalSize;
+        uint64_t totalSize = prevSize * 2;
         if (ftruncate(map->fd, totalSize) != 0) {
             KnackAssert("can not extend file!\n");
         }
         /*unmap之后会导致之前所有的指针指向失效，需要重新赋值*/
-        munmap(map->memory, map->header->totalSize);
+        if (munmap(map->memory, prevSize) != 0) {
+            KnackAssert("knack can not unmap file!");
+        }
         void *memory = mmap(NULL, totalSize, PROT_READ | PROT_WRITE, MAP_SHARED, map->fd, 0);
+        if (memory == MAP_FAILED) {
+            KnackAssert("knack can not map file");
+        }
         KnackMapReset(map, memory, totalSize);
         // move contents to new location
-        memmove(map->memory + map->header->contentStart + PAGE_SIZE, map->memory + map->header->contentStart, map->header->contentUsed);
+        memmove(map->memory + map->header->contentStart + prevSize, map->memory + map->header->contentStart, map->header->contentUsed);
         // set old contents to 0
-        memset(map->memory + map->header->contentStart, 0, PAGE_SIZE);
+        memset(map->memory + map->header->contentStart, 0, prevSize);
         //change map ptr
-        map->header->contentStart += PAGE_SIZE;
+        map->header->contentStart += prevSize;
         map->contents = map->memory + map->header->contentStart;
     }
     //
@@ -282,12 +288,21 @@ int KnackWriteContent(KnackMap *map,const void *key, uint32_t keyLength, const v
     int bytesCount = keyLength + valueLength + 1;
     uint64_t afterUsed = map->header->contentStart + contentOffset + bytesCount;
     if (afterUsed > map->header->totalSize) {
-        afterUsed = map->header->totalSize + (bytesCount / PAGE_SIZE + 1) * PAGE_SIZE;
+        uint64_t used = map->header->totalSize;
+        do {
+            used *= 2;
+        } while (afterUsed > used);
+        afterUsed = used;
         if (ftruncate(map->fd, afterUsed) != 0) {
             KnackAssert("can not extend file capacity!");
         }
-        munmap(map->memory, map->header->totalSize);
+        if (munmap(map->memory, map->header->totalSize) != 0) {
+            KnackAssert("can not unmap file");
+        }
         void *memory = mmap(NULL, afterUsed, PROT_READ | PROT_WRITE, MAP_SHARED, map->fd, 0);
+        if (memory == MAP_FAILED) {
+             KnackAssert("knack can not map file");
+        }
         KnackMapReset(map, memory, afterUsed);
     }
     memcpy(map->contents + contentOffset, key, keyLength);
@@ -330,21 +345,21 @@ void KnackInsertNotFull(KnackMap *map, KnackPiece *parent, KnackPiece *current, 
         KnackPiece *leaf = KnackGetPieceAtLoc(map, current->children[i]);
         if (leaf->count == KNACK_NODE_MAX) {
             
-            KnackPiece *sibling = NULL;
-            uint32_t siblingIndex = 0;
-            for (int i = 0; i <= current->count; i++) {
-                KnackPiece *piece = KnackGetPieceAtLoc(map, current->children[i]);
-                if (piece->count < KNACK_NODE_MAX && piece->isLeaf) {
-                    sibling = piece;
-                    siblingIndex = i;
-                    break;
-                }
-            }
-
-            if (sibling != NULL && siblingIndex != prevCurIdx && i != prevSibIdx) {
-                KnackMoveNodeToNeighboor(map, sibling, siblingIndex, current, leaf, i);
-                KnackInsertNotFull(map, parent, current, hash, keyLength, valueLength, contentOffset, siblingIndex, i);
-            } else {
+//            KnackPiece *sibling = NULL;
+//            uint32_t siblingIndex = 0;
+//            for (int i = 0; i <= current->count; i++) {
+//                KnackPiece *piece = KnackGetPieceAtLoc(map, current->children[i]);
+//                if (piece->count < KNACK_NODE_MAX && piece->isLeaf) {
+//                    sibling = piece;
+//                    siblingIndex = i;
+//                    break;
+//                }
+//            }
+//
+//            if (sibling != NULL && siblingIndex != prevCurIdx && i != prevSibIdx) {
+//                KnackMoveNodeToNeighboor(map, sibling, siblingIndex, current, leaf, i);
+//                KnackInsertNotFull(map, parent, current, hash, keyLength, valueLength, contentOffset, siblingIndex, i);
+//            } else {
                 uint32_t parentLoc = current->loc;
                 KnackSplitLeaf(map,parentLoc, i, leaf->loc);
                 current = KnackGetPieceAtLoc(map, parentLoc);
@@ -353,7 +368,7 @@ void KnackInsertNotFull(KnackMap *map, KnackPiece *parent, KnackPiece *current, 
                 }
                 leaf = KnackGetPieceAtLoc(map, current->children[i]);
                 KnackInsertNotFull(map, current, leaf, hash, keyLength, valueLength, contentOffset,KNACK_INVALID_LOC,KNACK_INVALID_LOC);
-            }
+//            }
         } else {
             KnackInsertNotFull(map, current, leaf, hash, keyLength, valueLength, contentOffset,KNACK_INVALID_LOC,KNACK_INVALID_LOC);
         }
@@ -396,9 +411,6 @@ KnackMap *KnackMapInit(void) {
 void KnackMapPut(KnackMap *map, const void *key, uint32_t keyLength, const void *value, uint32_t valueLength, int8_t type) {
     if (map != NULL) {
         uint32_t hash = XXH32(key, keyLength, 0);
-#if KNACK_DEBUG
-//        KnackDebugPrint(map);
-#endif
         KnackPiece *root = map->headPiece;
         KnackNode *existedNode = KnackSearchNode(map, map->headPiece, hash);
         if (existedNode != NULL) {
@@ -430,9 +442,6 @@ void KnackMapPut(KnackMap *map, const void *key, uint32_t keyLength, const void 
 const void * KnackMapGet(KnackMap *map, const void *key, uint32_t keyLength, uint32_t *valueLength, uint8_t *type) {
     if (map != NULL) {
         uint32_t hash = XXH32(key, keyLength, 0);
-#if KNACK_DEBUG
-//        KnackDebugPrint(map);
-#endif
         KnackNode *node = KnackSearchNode(map, map->headPiece, hash);
         if (node != NULL) {
             return KnackReadContent(map, node, valueLength, type);
