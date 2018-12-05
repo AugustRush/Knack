@@ -23,7 +23,7 @@ extern "C" {
  
     typedef struct KnackMap KnackMap;
     
-    KnackMap *KnackMapInit(void);
+    KnackMap *KnackMapInit(const char *path);
     void KnackMapPut(KnackMap *map, const void *key, uint32_t keyLength, const void *value, uint32_t valueLength, int8_t type);
     const void * KnackMapGet(KnackMap *map, const void *key, uint32_t keyLength, uint32_t *valueLength, uint8_t *type);
     void KnackDebugPrint(KnackMap *map);

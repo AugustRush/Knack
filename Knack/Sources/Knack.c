@@ -401,10 +401,10 @@ KnackNode *KnackSearchNode(KnackMap *map, KnackPiece *root, uint32_t hash) {
     return node;
 }
 
-KnackMap *KnackMapInit(void) {
+KnackMap *KnackMapInit(const char *path) {
     uint32_t size = 2 * PAGE_SIZE;
     KnackMap *map = malloc(sizeof(KnackMap));
-    KnackMMPFile(map, "/Users/pingweiliu/Desktop/KNACK_DEF",size);
+    KnackMMPFile(map, path, size);
     return map;
 }
 
