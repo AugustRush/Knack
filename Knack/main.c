@@ -11,7 +11,7 @@
 #include <sys/time.h>
 #include <inttypes.h>
 #include <string.h>
-#include "xxhash/xxhash.h"
+#include "xxhash.h"
 
 void printTime()      //直接调用这个函数就行了，返回值最好是int64_t，long long应该也可以
 {
