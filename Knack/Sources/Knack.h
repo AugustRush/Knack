@@ -10,12 +10,8 @@
 #define Knack_h
 
 #include <assert.h>
-#include <math.h>
-#include <stdarg.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {

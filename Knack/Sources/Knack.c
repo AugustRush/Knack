@@ -10,7 +10,6 @@
 #include "xxhash/xxhash.h"
 #include <string.h>
 #include <sys/mman.h>
-#include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -345,21 +344,21 @@ void KnackInsertNotFull(KnackMap *map, KnackPiece *parent, KnackPiece *current, 
         KnackPiece *leaf = KnackGetPieceAtLoc(map, current->children[i]);
         if (leaf->count == KNACK_NODE_MAX) {
             
-//            KnackPiece *sibling = NULL;
-//            uint32_t siblingIndex = 0;
-//            for (int i = 0; i <= current->count; i++) {
-//                KnackPiece *piece = KnackGetPieceAtLoc(map, current->children[i]);
-//                if (piece->count < KNACK_NODE_MAX && piece->isLeaf) {
-//                    sibling = piece;
-//                    siblingIndex = i;
-//                    break;
-//                }
-//            }
-//
-//            if (sibling != NULL && siblingIndex != prevCurIdx && i != prevSibIdx) {
-//                KnackMoveNodeToNeighboor(map, sibling, siblingIndex, current, leaf, i);
-//                KnackInsertNotFull(map, parent, current, hash, keyLength, valueLength, contentOffset, siblingIndex, i);
-//            } else {
+            KnackPiece *sibling = NULL;
+            uint32_t siblingIndex = 0;
+            for (int i = 0; i <= current->count; i++) {
+                KnackPiece *piece = KnackGetPieceAtLoc(map, current->children[i]);
+                if (piece->count < KNACK_NODE_MAX && piece->isLeaf) {
+                    sibling = piece;
+                    siblingIndex = i;
+                    break;
+                }
+            }
+
+            if (sibling != NULL && siblingIndex != prevCurIdx && i != prevSibIdx) {
+                KnackMoveNodeToNeighboor(map, sibling, siblingIndex, current, leaf, i);
+                KnackInsertNotFull(map, parent, current, hash, keyLength, valueLength, contentOffset, siblingIndex, i);
+            } else {
                 uint32_t parentLoc = current->loc;
                 KnackSplitLeaf(map,parentLoc, i, leaf->loc);
                 current = KnackGetPieceAtLoc(map, parentLoc);
@@ -368,7 +367,7 @@ void KnackInsertNotFull(KnackMap *map, KnackPiece *parent, KnackPiece *current, 
                 }
                 leaf = KnackGetPieceAtLoc(map, current->children[i]);
                 KnackInsertNotFull(map, current, leaf, hash, keyLength, valueLength, contentOffset,KNACK_INVALID_LOC,KNACK_INVALID_LOC);
-//            }
+            }
         } else {
             KnackInsertNotFull(map, current, leaf, hash, keyLength, valueLength, contentOffset,KNACK_INVALID_LOC,KNACK_INVALID_LOC);
         }
