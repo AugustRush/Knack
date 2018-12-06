@@ -97,12 +97,12 @@ int KnackFileIsValidate(const void *ptr) {
 }
 
 /*+++++++++++++++++++++++++++++++++++++++++++++文件操作++++++++++++++++++++++++++++++++++++*/
-void KnackReset(KnackMap *map, int fd, void *bytes, uint64_t size, uint32_t validHash) {
+void KnackReset(KnackMap *map, int fd, void *ptr, uint64_t size, uint32_t validHash) {
     map->fd = fd;
-    map->memory = bytes;
+    map->memory = ptr;
     map->header = (KnackHeader *)map->memory;
     //
-    memset(bytes, 0, size);
+    memset(ptr, 0, size);
     map->header->hash = validHash;
     map->header->totalSize = size;
     map->header->nodeCount = 0;
@@ -152,7 +152,7 @@ void KnackMMPFile(KnackMap *map,const char *path, uint64_t minimalSize) {
                 size = size > minimalSize ? size : minimalSize;
                 KnackFtruncate(fd, size);
             }
-            void *ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+            void *ptr = KnackMemoryMap(fd, size);
             if (KnackFileIsValidate(ptr)) {
                 KnackConstruct(map, fd, ptr, size);
             } else {
@@ -253,10 +253,11 @@ void KnackMoveNodeToNeighbor(KnackMap *map,KnackPiece *sibling, uint32_t sibIdx,
 }
 
 void KnackSplitPiece(KnackMap *map,uint32_t parentLoc, uint32_t index, uint32_t currentLoc) {
-    
+    /*应该先创建New Piece，因为创建新的有可能导致map失效，之前获得的parent和current会变成野指针*/
+    KnackPiece *newPiece = KnackCreateNewPiece(map, 0);
     KnackPiece *parent = KnackGetPieceAtLoc(map, parentLoc);
     KnackPiece *current = KnackGetPieceAtLoc(map, currentLoc);
-    KnackPiece *newPiece = KnackCreateNewPiece(map, current->isLeaf);
+    newPiece->isLeaf = current->isLeaf;
     
     int mid = current->count / 2;
     int copyCount = current->count - mid - 1;
