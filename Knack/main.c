@@ -22,10 +22,10 @@ void printTime()      //直接调用这个函数就行了，返回值最好是in
 
 int main(int argc, const char * argv[]) {
     // insert code here...
-    KnackMap *map = KnackMapInit();
+    KnackMap *map = KnackMapInit("/Users/pingweiliu/Desktop/KNACK_DEF");
     
     printTime();
-    uint32_t testNum = 1000000;
+    uint32_t testNum = 1500000;
     for (int i = 0; i < testNum; i++) {
         KnackMapPut(map, &i, 4, &i, 4, 10);
     }
@@ -40,6 +40,6 @@ int main(int argc, const char * argv[]) {
     }
     printTime();
     
-    KnackDebugPrint(map);
+//    KnackDebugPrint(map);
     return 0;
 }
