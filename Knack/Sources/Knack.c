@@ -308,55 +308,70 @@ const void * KnackReadContent(const KnackMap *map, const KnackNode *node, const 
     return NULL;
 }
 
-void KnackInsertNotFull(KnackMap *map, KnackPiece *parent, KnackPiece *current, uint32_t hash, uint32_t keyLength, uint32_t valueLength, uint32_t contentOffset, uint32_t prevSibIdx, uint32_t prevCurIdx) {
+void KnackRepalceNode(KnackMap *map, KnackNode *node) {
+    
+}
+
+KnackNode * KnackInsertToNotFullPiece(KnackMap *map, KnackPiece *parent, KnackPiece *current, uint32_t hash, uint32_t keyLength, uint32_t valueLength, uint32_t contentOffset, uint32_t prevSibIdx, uint32_t prevCurIdx) {
     int i = 0;
-    while (i < current->count && hash > current->nodes[i].hash) {
+    KnackNode *exsitNode = NULL;
+    while (i < current->count) {
+        KnackNode *node = current->nodes + i;
+        if (hash == node->hash) {
+            exsitNode = node;
+            break;
+        }
+        if (hash < node->hash) {
+            break;
+        }
         i++;
     }
-    
-    if (current->isLeaf) {
-        int copyCount = current->count - i;
-        if (copyCount > 0) {
-            memmove(current->nodes + i + 1, current->nodes + i, copyCount *KNACK_NODE_SIZE);
-        }
-        KnackNode *node = current->nodes + i;
-        node->hash = hash;
-        node->keyLength = keyLength;
-        node->valueLength = valueLength;
-        node->contentOffset = contentOffset;
-        current->count += 1;
-    } else {
-        KnackPiece *leaf = KnackGetPieceAtLoc(map, current->children[i]);
-        if (leaf->count == KNACK_NODE_MAX) {
-            
-            KnackPiece *sibling = NULL;
-            uint32_t siblingIndex = 0;
-            for (int i = 0; i <= current->count; i++) {
-                KnackPiece *piece = KnackGetPieceAtLoc(map, current->children[i]);
-                if (piece->count < KNACK_NODE_MAX && piece->isLeaf) {
-                    sibling = piece;
-                    siblingIndex = i;
-                    break;
-                }
+    if (exsitNode == NULL) {
+        if (current->isLeaf) {
+            int copyCount = current->count - i;
+            if (copyCount > 0) {
+                memmove(current->nodes + i + 1, current->nodes + i, copyCount *KNACK_NODE_SIZE);
             }
-
-            if (sibling != NULL && (siblingIndex != prevCurIdx || i != prevSibIdx)) {
-                KnackMoveNodeToNeighbor(map, sibling, siblingIndex, current, leaf, i);
-                KnackInsertNotFull(map, parent, current, hash, keyLength, valueLength, contentOffset, siblingIndex, i);
-            } else {
-                uint32_t parentLoc = current->loc;
-                KnackSplitPiece(map,parentLoc, i, leaf->loc);
-                current = KnackGetPieceAtLoc(map, parentLoc);
-                if (hash > current->nodes[i].hash) {
-                    ++i;
-                }
-                leaf = KnackGetPieceAtLoc(map, current->children[i]);
-                KnackInsertNotFull(map, current, leaf, hash, keyLength, valueLength, contentOffset,KNACK_INVALID_LOC,KNACK_INVALID_LOC);
-            }
+            KnackNode *node = current->nodes + i;
+            node->hash = hash;
+            node->keyLength = keyLength;
+            node->valueLength = valueLength;
+            node->contentOffset = contentOffset;
+            current->count += 1;
         } else {
-            KnackInsertNotFull(map, current, leaf, hash, keyLength, valueLength, contentOffset,KNACK_INVALID_LOC,KNACK_INVALID_LOC);
+            KnackPiece *leaf = KnackGetPieceAtLoc(map, current->children[i]);
+            if (leaf->count == KNACK_NODE_MAX) {
+                
+                KnackPiece *sibling = NULL;
+                uint32_t siblingIndex = 0;
+                for (int i = 0; i <= current->count; i++) {
+                    KnackPiece *piece = KnackGetPieceAtLoc(map, current->children[i]);
+                    if (piece->count < KNACK_NODE_MAX && piece->isLeaf) {
+                        sibling = piece;
+                        siblingIndex = i;
+                        break;
+                    }
+                }
+                
+                if (sibling != NULL && (siblingIndex != prevCurIdx || i != prevSibIdx)) {
+                    KnackMoveNodeToNeighbor(map, sibling, siblingIndex, current, leaf, i);
+                    KnackInsertToNotFullPiece(map, parent, current, hash, keyLength, valueLength, contentOffset, siblingIndex, i);
+                } else {
+                    uint32_t parentLoc = current->loc;
+                    KnackSplitPiece(map,parentLoc, i, leaf->loc);
+                    current = KnackGetPieceAtLoc(map, parentLoc);
+                    if (hash > current->nodes[i].hash) {
+                        ++i;
+                    }
+                    leaf = KnackGetPieceAtLoc(map, current->children[i]);
+                    KnackInsertToNotFullPiece(map, current, leaf, hash, keyLength, valueLength, contentOffset,KNACK_INVALID_LOC,KNACK_INVALID_LOC);
+                }
+            } else {
+                KnackInsertToNotFullPiece(map, current, leaf, hash, keyLength, valueLength, contentOffset,KNACK_INVALID_LOC,KNACK_INVALID_LOC);
+            }
         }
     }
+    return exsitNode;
 }
 
 KnackNode *KnackSearchNode(KnackMap *map, KnackPiece *root, uint32_t hash) {
@@ -392,14 +407,32 @@ KnackMap *KnackMapInit(const char *path) {
     return map;
 }
 
+void KnackUpdateOrInsert(KnackMap *map, KnackPiece *parent, KnackPiece *current, uint32_t hash, const void *key, uint32_t keyLength, const void *value, uint32_t valueLength, int8_t type) {
+    KnackNode *existedNode = KnackInsertToNotFullPiece(map, parent, current, hash, keyLength, valueLength, map->header->contentUsed,KNACK_INVALID_LOC,KNACK_INVALID_LOC);
+    if (existedNode != NULL) {
+        Byte *contents = map->contents + existedNode->contentOffset;
+        if (keyLength == existedNode->keyLength && memcmp(contents, key, keyLength) == 0) {//同一个key
+            //处理数据的存储
+#warning to do
+            KnackAssert("to do ....");
+        } else {
+            //用链表的形式处理hash冲突
+#warning to do
+            KnackAssert("to do ....");
+        }
+    } else {
+        int writeBytes = KnackWriteContent(map, key, keyLength, value, valueLength, type, map->header->contentUsed);
+        if (writeBytes > 0) {
+            map->header->contentUsed += writeBytes;
+        }
+    }
+}
+
 void KnackMapPut(KnackMap *map, const void *key, uint32_t keyLength, const void *value, uint32_t valueLength, int8_t type) {
     if (map != NULL) {
         uint32_t hash = XXH32(key, keyLength, 0);
+        
         KnackPiece *root = map->headPiece;
-        KnackNode *existedNode = KnackSearchNode(map, map->headPiece, hash);
-        if (existedNode != NULL) {
-            return;
-        }
         
         if (root->count == KNACK_NODE_MAX) {
             KnackPiece *newRoot = KnackCreateNewPiece(map, 0);
@@ -409,15 +442,10 @@ void KnackMapPut(KnackMap *map, const void *key, uint32_t keyLength, const void 
             map->headPiece = newRoot;
             //
             KnackSplitPiece(map, newRoot->loc, 0, root->loc);
-            KnackInsertNotFull(map, NULL, newRoot, hash, keyLength, valueLength, map->header->contentUsed,KNACK_INVALID_LOC,KNACK_INVALID_LOC);
-        } else {
-            KnackInsertNotFull(map, NULL, root, hash, keyLength, valueLength, map->header->contentUsed,KNACK_INVALID_LOC,KNACK_INVALID_LOC);
+            //
+            root = newRoot;
         }
-        //insert contents
-        int writeBytes = KnackWriteContent(map, key, keyLength, value, valueLength, type, map->header->contentUsed);
-        if (writeBytes > 0) {
-            map->header->contentUsed += writeBytes;
-        }
+        KnackUpdateOrInsert(map, NULL, root, hash, key, keyLength, value, valueLength, type);
     }
 }
 
