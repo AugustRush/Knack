@@ -297,11 +297,12 @@ uint32_t KnackWriteContent(KnackMap *map,const void *key, uint32_t keyLength, co
 
 const void * KnackReadContent(const KnackMap *map, const KnackNode *node, const void *key, uint32_t keyLength, uint32_t *valueLength, uint8_t *type) {
     Byte *contents = map->contents + node->contentOffset;
-    //
-    *type = contents[node->keyLength];
-    *valueLength = node->valueLength;
     //compared length and bytes
     if (keyLength == node->keyLength && memcmp(contents, key, keyLength) == 0) {
+        //
+        *type = contents[node->keyLength];
+        *valueLength = node->valueLength;
+        //
         return contents + node->keyLength + 1;
     }
     return NULL;
@@ -339,7 +340,7 @@ void KnackInsertNotFull(KnackMap *map, KnackPiece *parent, KnackPiece *current, 
                 }
             }
 
-            if (sibling != NULL && siblingIndex != prevCurIdx && i != prevSibIdx) {
+            if (sibling != NULL && (siblingIndex != prevCurIdx || i != prevSibIdx)) {
                 KnackMoveNodeToNeighbor(map, sibling, siblingIndex, current, leaf, i);
                 KnackInsertNotFull(map, parent, current, hash, keyLength, valueLength, contentOffset, siblingIndex, i);
             } else {

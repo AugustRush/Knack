@@ -24,22 +24,31 @@ int main(int argc, const char * argv[]) {
     // insert code here...
     KnackMap *map = KnackMapInit("/Users/pingweiliu/Desktop/KNACK_DEF");
     
-    printTime();
-    uint32_t testNum = 1500000;
+    uint32_t testNum = 10000000;
+    uint32_t *numbers = malloc(sizeof(uint32_t) * testNum);
     for (int i = 0; i < testNum; i++) {
-        KnackMapPut(map, &i, 4, &i, 4, 10);
+        numbers[i] = arc4random();
+    }
+    
+    printTime();
+    for (int i = 0; i < testNum; i++) {
+        uint32_t num = numbers[i];
+        KnackMapPut(map, &num, 4, &i, 4, 10);
     }
     printTime();
     for (int i = 0; i < testNum; i++) {
         uint32_t length = 0;
         uint8_t type = 0;
-        const void *value = KnackMapGet(map, &i, 4, &length, &type);
+        uint32_t num = numbers[i];
+        const void *value = KnackMapGet(map, &num, 4, &length, &type);
         uint32_t v = 0;
         memcpy(&v, value, 4);
 //        printf("%u  %d  %u\n",v,type,length);
     }
     printTime();
     
+    KnackMapFree(map);
+    free(numbers);
 //    KnackDebugPrint(map);
     return 0;
 }
