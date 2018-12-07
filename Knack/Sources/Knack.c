@@ -460,7 +460,18 @@ const void * KnackMapGet(KnackMap *map, const void *key, uint32_t keyLength, uin
     return NULL;
 }
 
-void KnackMapFree(KnackMap *map) {
+void KnackRemove(KnackMap *map, uint32_t hash, const void *key, uint32_t keyLength) {
+    
+}
+
+void KnackMapRemove(KnackMap *map, const void *key, uint32_t keyLength) {
+    if (map != NULL) {
+        uint32_t hash = XXH32(key, keyLength, 0);
+        KnackRemove(map, hash, key, keyLength);
+    }
+}
+
+void KnackMapRelease(KnackMap *map) {
     free(map);
 }
 
