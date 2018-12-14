@@ -1,13 +1,13 @@
 //
 //  main.c
-//  Knack
+//  _Venom
 //
 //  Created by pingwei liu on 2018/11/28.
 //  Copyright © 2018 pingwei liu. All rights reserved.
 //
 
 #include <stdio.h>
-#import "Knack.h"
+#import "Venom.h"
 #include <sys/time.h>
 #include <inttypes.h>
 #include <string.h>
@@ -23,7 +23,7 @@ void printTime()      //直接调用这个函数就行了，返回值最好是in
 int main(int argc, const char * argv[]) {
     // insert code here...
     
-    KnackMap *map = KnackMapInit("/Users/pingweiliu/Desktop/KNACK_DEF");
+    Venom *map = VenomInit("/Users/pingweiliu/Desktop/_Venom_DEF");
 
     uint32_t testNum = 10000000;
     uint32_t *numbers = malloc(sizeof(uint32_t) * testNum);
@@ -34,22 +34,22 @@ int main(int argc, const char * argv[]) {
     printTime();
     for (int i = 0; i < testNum; i++) {
         uint32_t num = numbers[i];
-        KnackMapPut(map, &num, 4, &i, 4, 10);
+        VenomPut(map, &num, 4, &i, 4, 10);
     }
     printTime();
     for (int i = 0; i < testNum; i++) {
         uint32_t length = 0;
         uint8_t type = 0;
         uint32_t num = numbers[i];
-        const void *value = KnackMapGet(map, &num, 4, &length, &type);
+        const void *value = VenomGet(map, &num, 4, &length, &type);
         uint32_t v = 0;
         memcpy(&v, value, 4);
 //        printf("%u  %d  %u\n",v,type,length);
     }
     printTime();
 
-    KnackMapRelease(map);
+    VenomRelease(map);
     free(numbers);
-//    KnackDebugPrint(map);
+//    _VenomDebugPrint(map);
     return 0;
 }

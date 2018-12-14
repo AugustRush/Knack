@@ -1,12 +1,12 @@
 //
-//  Knack.c
-//  Knack
+//  _Venom.c
+//  _Venom
 //
 //  Created by pingwei liu on 2018/11/28.
 //  Copyright © 2018 pingwei liu. All rights reserved.
 //
 
-#include "Knack.h"
+#include "Venom.h"
 #include "xxhash/xxhash.h"
 #include <string.h>
 #include <sys/mman.h>
@@ -14,32 +14,32 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#define KNACK_ORDER 6 //必须为偶数
-#define KNACK_NODE_MAX (KNACK_ORDER - 1)
+#define VENOM_ORDER 6 //必须为偶数
+#define VENOM_NODE_MAX (VENOM_ORDER - 1)
 #define PAGE_SIZE 4096
-#define KNACK_INVALID_LOC 0xFFFFFFFF
-#define KNACK_DEBUG 1
-#define KNACK_SEGMENT_LIMIT 1024*1024*16 //16M
+#define VENOM_INVALID_LOC 0xFFFFFFFF
+#define VENOM_DEBUG 1
+#define VENOM_SEGMENT_LIMIT 1024*1024*16 //16M
 
 typedef uint8_t Byte;
 
-typedef struct __attribute__((__packed__)) KnackNode {
+typedef struct __attribute__((__packed__)) _VenomNode {
     uint32_t hash;
     uint32_t keyLength;
     uint32_t valueLength;
     uint32_t contentOffset;
-} KnackNode;
+} _VenomNode;
 
-typedef struct __attribute__((__packed__)) KnackPiece {
+typedef struct __attribute__((__packed__)) _VenomPiece {
     unsigned int count : 7;
     unsigned int isLeaf : 1;
     uint32_t loc;
-    KnackNode nodes[KNACK_ORDER - 1];
-    uint32_t children[KNACK_ORDER];
+    _VenomNode nodes[VENOM_ORDER - 1];
+    uint32_t children[VENOM_ORDER];
     
-} KnackPiece;
+} _VenomPiece;
 
-typedef struct __attribute__((__packed__)) KnackHeader {
+typedef struct __attribute__((__packed__)) _VenomHeader {
     uint32_t hash;
     uint32_t keysCount;
     uint64_t totalSize;
@@ -48,47 +48,47 @@ typedef struct __attribute__((__packed__)) KnackHeader {
     uint32_t pieceCount;
     uint32_t contentStart;
     uint32_t contentUsed;
-} KnackHeader;
+} _VenomHeader;
 
-typedef struct KnackMap {
+typedef struct Venom {
     int fd;
     Byte *memory;
-    KnackHeader *header;
-    KnackPiece *pieces;
-    KnackPiece *headPiece;
+    _VenomHeader *header;
+    _VenomPiece *pieces;
+    _VenomPiece *headPiece;
     Byte *contents;
-} KnackMap;
+} Venom;
 
 
-const size_t KNACK_NODE_SIZE = sizeof(KnackNode);
-const size_t KNACK_PIECE_SIZE = sizeof(KnackPiece);
+const size_t VENOMNODE_SIZE = sizeof(_VenomNode);
+const size_t VENOMPIECE_SIZE = sizeof(_VenomPiece);
 
 /*+++++++++++++++++++++++++++++++++++++++++++++util funcs++++++++++++++++++++++++++++++++++++*/
 
-void KnackAssert(const char *error) {
+void _VenomAssert(const char *error) {
     printf("%s\n",error);
     assert(0);
 }
 
-void KnackFtruncate(int fd, uint64_t size) {
+void _VenomFtruncate(int fd, uint64_t size) {
     if (ftruncate(fd, size) != 0) {
-        KnackAssert("can not truncate file size.");
+        _VenomAssert("can not truncate file size.");
     }
 }
 
-void KnackUnmap(void *ptr, uint64_t size) {
+void _VenomUnmap(void *ptr, uint64_t size) {
     if (munmap(ptr, size) != 0) {
-        KnackAssert("knack can not unmap file!");
+        _VenomAssert("_Venom can not unmap file!");
     }
 }
 
-uint32_t KnackFileValidHash() {
+uint32_t _VenomFileValidHash() {
     static uint32_t hash = 0;
     hash = XXH32("KNAC_FILE_VALID_HASH", 20, 0);
     return hash;
 }
 
-int KnackFileIsValidate(const void *ptr) {
+int _VenomFileIsValidate(const void *ptr) {
     uint32_t validFileHash = XXH32("KNAC_FILE_VALID_HASH", 20, 0);
     if (memcmp(ptr, &validFileHash, sizeof(uint32_t)) == 0) {
         return validFileHash;
@@ -97,48 +97,48 @@ int KnackFileIsValidate(const void *ptr) {
 }
 
 /*+++++++++++++++++++++++++++++++++++++++++++++文件操作++++++++++++++++++++++++++++++++++++*/
-void KnackReset(KnackMap *map, int fd, void *ptr, uint64_t size, uint32_t validHash) {
+void _VenomReset(Venom *map, int fd, void *ptr, uint64_t size, uint32_t validHash) {
     map->fd = fd;
     map->memory = ptr;
-    map->header = (KnackHeader *)map->memory;
+    map->header = (_VenomHeader *)map->memory;
     //
     memset(ptr, 0, size);
     map->header->hash = validHash;
     map->header->totalSize = size;
     map->header->keysCount = 0;
     map->header->headLoc = 0;
-    map->header->pieceStart = sizeof(KnackHeader);
+    map->header->pieceStart = sizeof(_VenomHeader);
     map->header->pieceCount = 1;
     map->header->contentStart = PAGE_SIZE;
     map->header->contentUsed = 0;
-    map->pieces = (KnackPiece *)(map->memory + map->header->pieceStart);
+    map->pieces = (_VenomPiece *)(map->memory + map->header->pieceStart);
     map->headPiece = map->pieces + map->header->headLoc;
     map->headPiece->isLeaf = 1;
     map->headPiece->loc = map->header->headLoc;
     map->contents = map->memory + map->header->contentStart;
 }
 
-void KnackConstruct(KnackMap *map, int fd, void *ptr, uint64_t size) {
+void _VenomConstruct(Venom *map, int fd, void *ptr, uint64_t size) {
     map->fd = fd;
     map->memory = ptr;
-    map->header = (KnackHeader *)map->memory;
+    map->header = (_VenomHeader *)map->memory;
     map->header->totalSize = size;
-    map->pieces = (KnackPiece *)(map->memory + map->header->pieceStart);
+    map->pieces = (_VenomPiece *)(map->memory + map->header->pieceStart);
     map->headPiece = map->pieces + map->header->headLoc;
     map->headPiece->loc = map->header->headLoc;
     map->contents = map->memory + map->header->contentStart;
 }
 
 #warning 需要分段t映射，否则文件过大会失败
-void *KnackMemoryMap(int fd, uint64_t size) {
+void *_VenomMemoryMap(int fd, uint64_t size) {
     void *ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (ptr == MAP_FAILED) {
-        KnackAssert("knack can not map file");
+        _VenomAssert("_Venom can not map file");
     }
     return ptr;
 }
 
-void KnackMMPFile(KnackMap *map,const char *path, uint64_t minimalSize) {
+void _VenomMMPFile(Venom *map,const char *path, uint64_t minimalSize) {
     int fd = open(path, O_RDWR | O_CREAT, S_IRWXU);
     if (fd < 0) {
         printf("can not open file!\n");
@@ -151,32 +151,32 @@ void KnackMMPFile(KnackMap *map,const char *path, uint64_t minimalSize) {
             if (size < minimalSize || size % PAGE_SIZE != 0) {
                 size = (size / PAGE_SIZE + 1) * PAGE_SIZE;
                 size = size > minimalSize ? size : minimalSize;
-                KnackFtruncate(fd, size);
+                _VenomFtruncate(fd, size);
             }
-            void *ptr = KnackMemoryMap(fd, size);
-            if (KnackFileIsValidate(ptr)) {
-                KnackConstruct(map, fd, ptr, size);
+            void *ptr = _VenomMemoryMap(fd, size);
+            if (_VenomFileIsValidate(ptr)) {
+                _VenomConstruct(map, fd, ptr, size);
             } else {
-                KnackReset(map, fd, ptr, size, KnackFileValidHash());
+                _VenomReset(map, fd, ptr, size, _VenomFileValidHash());
             }
         } else {
-            KnackAssert("file state exception.");
+            _VenomAssert("file state exception.");
         }
     }
 }
 
 /*+++++++++++++++++++++++++++++++++++++++++++++实现b+ tree 连续内存存储++++++++++++++++++++++++++++++++++++*/
 
-void KnackExtendPieceSpaceIfNeeded(KnackMap *map, uint32_t pieceCount) {
-    uint32_t spaceForPiece = pieceCount * KNACK_PIECE_SIZE + map->header->pieceStart;
+void _VenomExtendPieceSpaceIfNeeded(Venom *map, uint32_t pieceCount) {
+    uint32_t spaceForPiece = pieceCount * VENOMPIECE_SIZE + map->header->pieceStart;
     if (spaceForPiece > map->header->contentStart) {
         uint64_t size = map->header->totalSize;
         uint64_t aftertExtend = size * 2;
-        KnackFtruncate(map->fd, aftertExtend);
+        _VenomFtruncate(map->fd, aftertExtend);
         /*unmap之后会导致之前所有的指针指向失效，需要重新赋值*/
-        KnackUnmap(map->memory, size);
-        void *newPtr = KnackMemoryMap(map->fd, aftertExtend);
-        KnackConstruct(map, map->fd, newPtr, aftertExtend);
+        _VenomUnmap(map->memory, size);
+        void *newPtr = _VenomMemoryMap(map->fd, aftertExtend);
+        _VenomConstruct(map, map->fd, newPtr, aftertExtend);
         // move contents to new location
         memmove(map->memory + map->header->contentStart + size, map->memory + map->header->contentStart, map->header->contentUsed);
         // set old contents to 0
@@ -187,48 +187,48 @@ void KnackExtendPieceSpaceIfNeeded(KnackMap *map, uint32_t pieceCount) {
     }
 }
 
-void KnackExtendContentSpaceIfNeeded(KnackMap *map, uint64_t size) {
+void _VenomExtendContentSpaceIfNeeded(Venom *map, uint64_t size) {
     if (size > map->header->totalSize) {
         uint64_t afterExtend = map->header->totalSize;
         do {
             afterExtend *= 2;
         } while (size > afterExtend);
-        KnackFtruncate(map->fd, afterExtend);
-        KnackUnmap(map->memory, map->header->totalSize);
-        void *newPtr = KnackMemoryMap(map->fd, afterExtend);
-        KnackConstruct(map, map->fd, newPtr, afterExtend);
+        _VenomFtruncate(map->fd, afterExtend);
+        _VenomUnmap(map->memory, map->header->totalSize);
+        void *newPtr = _VenomMemoryMap(map->fd, afterExtend);
+        _VenomConstruct(map, map->fd, newPtr, afterExtend);
     }
 }
 
-KnackPiece *KnackGetPieceAtLoc(KnackMap *map, uint32_t loc) {
+_VenomPiece *_VenomGetPieceAtLoc(Venom *map, uint32_t loc) {
     return map->pieces + loc;
 }
 
-KnackPiece *KnackCreateNewPiece(KnackMap *map, unsigned int isLeaf) {
+_VenomPiece *_VenomCreateNewPiece(Venom *map, unsigned int isLeaf) {
     uint32_t count = map->header->pieceCount;
     uint32_t afterUsed = count + 1;
-    KnackExtendPieceSpaceIfNeeded(map, afterUsed);
+    _VenomExtendPieceSpaceIfNeeded(map, afterUsed);
     //
     map->header->pieceCount = afterUsed;
     //
-    KnackPiece *piece = map->pieces + count;
+    _VenomPiece *piece = map->pieces + count;
     piece->count = 0;
     piece->loc = count;
     piece->isLeaf = isLeaf;
     return piece;
 }
 
-void KnackMoveNodeToNeighbor(KnackMap *map,KnackPiece *sibling, uint32_t sibIdx,KnackPiece *parent, KnackPiece *current, uint32_t curIdx) {
+void _VenomMoveNodeToNeighbor(Venom *map,_VenomPiece *sibling, uint32_t sibIdx,_VenomPiece *parent, _VenomPiece *current, uint32_t curIdx) {
     if (sibIdx < curIdx) { // 向左移动
-        KnackPiece *piece = sibling;
+        _VenomPiece *piece = sibling;
         uint32_t copyIdx = piece->count;
         for (int i = sibIdx; i < curIdx; i++) {
-            memcpy(piece->nodes + copyIdx, parent->nodes + i, KNACK_NODE_SIZE);
-            KnackPiece *leaf = KnackGetPieceAtLoc(map, parent->children[i+1]);
-            memcpy(parent->nodes + i, leaf->nodes, KNACK_NODE_SIZE);
+            memcpy(piece->nodes + copyIdx, parent->nodes + i, VENOMNODE_SIZE);
+            _VenomPiece *leaf = _VenomGetPieceAtLoc(map, parent->children[i+1]);
+            memcpy(parent->nodes + i, leaf->nodes, VENOMNODE_SIZE);
             int moveCount = leaf->count - 1;
             if (moveCount > 0) {
-                memmove(leaf->nodes, leaf->nodes + 1, moveCount * KNACK_NODE_SIZE);
+                memmove(leaf->nodes, leaf->nodes + 1, moveCount * VENOMNODE_SIZE);
             }
             piece = leaf;
             copyIdx = piece->count - 1;
@@ -236,15 +236,15 @@ void KnackMoveNodeToNeighbor(KnackMap *map,KnackPiece *sibling, uint32_t sibIdx,
         current->count -= 1;
         sibling->count += 1;
     } else { // 向右移动
-        memmove(sibling->nodes + 1, sibling->nodes, sibling->count * KNACK_NODE_SIZE);
-        KnackPiece *piece = sibling;
+        memmove(sibling->nodes + 1, sibling->nodes, sibling->count * VENOMNODE_SIZE);
+        _VenomPiece *piece = sibling;
         for (int i = sibIdx; i > curIdx; i--) {
-            memcpy(piece->nodes, parent->nodes + i - 1, KNACK_NODE_SIZE);
-            KnackPiece *leaf = KnackGetPieceAtLoc(map, parent->children[i - 1]);
-            memcpy(parent->nodes + i - 1, leaf->nodes + leaf->count - 1, KNACK_NODE_SIZE);
+            memcpy(piece->nodes, parent->nodes + i - 1, VENOMNODE_SIZE);
+            _VenomPiece *leaf = _VenomGetPieceAtLoc(map, parent->children[i - 1]);
+            memcpy(parent->nodes + i - 1, leaf->nodes + leaf->count - 1, VENOMNODE_SIZE);
             int moveCount = leaf->count - 1;
             if (moveCount > 0 && i > curIdx + 1) {
-                memmove(leaf->nodes + 1, leaf->nodes, moveCount * KNACK_NODE_SIZE);
+                memmove(leaf->nodes + 1, leaf->nodes, moveCount * VENOMNODE_SIZE);
             }
             piece = leaf;
         }
@@ -253,16 +253,16 @@ void KnackMoveNodeToNeighbor(KnackMap *map,KnackPiece *sibling, uint32_t sibIdx,
     }
 }
 
-void KnackSplitPiece(KnackMap *map,uint32_t parentLoc, uint32_t index, uint32_t currentLoc) {
+void _VenomSplitPiece(Venom *map,uint32_t parentLoc, uint32_t index, uint32_t currentLoc) {
     /*应该先创建New Piece，因为创建新的有可能导致map失效，之前获得的parent和current会变成野指针*/
-    KnackPiece *newPiece = KnackCreateNewPiece(map, 0);
-    KnackPiece *parent = KnackGetPieceAtLoc(map, parentLoc);
-    KnackPiece *current = KnackGetPieceAtLoc(map, currentLoc);
+    _VenomPiece *newPiece = _VenomCreateNewPiece(map, 0);
+    _VenomPiece *parent = _VenomGetPieceAtLoc(map, parentLoc);
+    _VenomPiece *current = _VenomGetPieceAtLoc(map, currentLoc);
     newPiece->isLeaf = current->isLeaf;
     
     int mid = current->count / 2;
     int copyCount = current->count - mid - 1;
-    memcpy(newPiece->nodes, current->nodes + mid + 1, copyCount * KNACK_NODE_SIZE);
+    memcpy(newPiece->nodes, current->nodes + mid + 1, copyCount * VENOMNODE_SIZE);
     newPiece->count = copyCount;
     //
     if (!current->isLeaf) {
@@ -279,24 +279,24 @@ void KnackSplitPiece(KnackMap *map,uint32_t parentLoc, uint32_t index, uint32_t 
     
     int moveCount = parent->count - index;
     if (moveCount > 0) {
-        memmove(parent->nodes + index + 1, parent->nodes + index, moveCount * KNACK_NODE_SIZE);
+        memmove(parent->nodes + index + 1, parent->nodes + index, moveCount * VENOMNODE_SIZE);
     }
     //
-    memcpy(parent->nodes + index, current->nodes + mid, KNACK_NODE_SIZE);
+    memcpy(parent->nodes + index, current->nodes + mid, VENOMNODE_SIZE);
     parent->count += 1;
 }
 
 //return all raw data take bytes
-uint32_t KnackWriteContent(KnackMap *map,const void *key, uint32_t keyLength, const void *value, uint32_t valueLength, uint8_t type, uint32_t contentOffset) {
+uint32_t _VenomWriteContent(Venom *map,const void *key, uint32_t keyLength, const void *value, uint32_t valueLength, uint8_t type, uint32_t contentOffset) {
     int bytesCount = keyLength + valueLength + 1;
-    KnackExtendContentSpaceIfNeeded(map, map->header->contentStart + contentOffset + bytesCount);
+    _VenomExtendContentSpaceIfNeeded(map, map->header->contentStart + contentOffset + bytesCount);
     memcpy(map->contents + contentOffset, key, keyLength);
     map->contents[contentOffset + keyLength] = type;
     memcpy(map->contents + contentOffset + 1 + keyLength, value, valueLength);
     return bytesCount;
 }
 
-const void * KnackReadContent(const KnackMap *map, const KnackNode *node, const void *key, uint32_t keyLength, uint32_t *valueLength, uint8_t *type) {
+const void * _VenomReadContent(const Venom *map, const _VenomNode *node, const void *key, uint32_t keyLength, uint32_t *valueLength, uint8_t *type) {
     Byte *contents = map->contents + node->contentOffset;
     //compared length and bytes
     if (keyLength == node->keyLength && memcmp(contents, key, keyLength) == 0) {
@@ -309,15 +309,15 @@ const void * KnackReadContent(const KnackMap *map, const KnackNode *node, const 
     return NULL;
 }
 
-void KnackRepalceNode(KnackMap *map, KnackNode *node) {
+void _VenomRepalceNode(Venom *map, _VenomNode *node) {
     
 }
 
-KnackNode * KnackInsertToNotFullPiece(KnackMap *map, KnackPiece *parent, KnackPiece *current, uint32_t hash, uint32_t keyLength, uint32_t valueLength, uint32_t contentOffset, uint32_t prevSibIdx, uint32_t prevCurIdx) {
+_VenomNode * _VenomInsertToNotFullPiece(Venom *map, _VenomPiece *parent, _VenomPiece *current, uint32_t hash, uint32_t keyLength, uint32_t valueLength, uint32_t contentOffset, uint32_t prevSibIdx, uint32_t prevCurIdx) {
     int i = 0;
-    KnackNode *exsitNode = NULL;
+    _VenomNode *exsitNode = NULL;
     while (i < current->count) {
-        KnackNode *node = current->nodes + i;
+        _VenomNode *node = current->nodes + i;
         if (hash == node->hash) {
             exsitNode = node;
             break;
@@ -331,23 +331,23 @@ KnackNode * KnackInsertToNotFullPiece(KnackMap *map, KnackPiece *parent, KnackPi
         if (current->isLeaf) {
             int copyCount = current->count - i;
             if (copyCount > 0) {
-                memmove(current->nodes + i + 1, current->nodes + i, copyCount *KNACK_NODE_SIZE);
+                memmove(current->nodes + i + 1, current->nodes + i, copyCount *VENOMNODE_SIZE);
             }
-            KnackNode *node = current->nodes + i;
+            _VenomNode *node = current->nodes + i;
             node->hash = hash;
             node->keyLength = keyLength;
             node->valueLength = valueLength;
             node->contentOffset = contentOffset;
             current->count += 1;
         } else {
-            KnackPiece *leaf = KnackGetPieceAtLoc(map, current->children[i]);
-            if (leaf->count == KNACK_NODE_MAX) {
+            _VenomPiece *leaf = _VenomGetPieceAtLoc(map, current->children[i]);
+            if (leaf->count == VENOM_NODE_MAX) {
                 
-                KnackPiece *sibling = NULL;
+                _VenomPiece *sibling = NULL;
                 uint32_t siblingIndex = 0;
                 for (int i = 0; i <= current->count; i++) {
-                    KnackPiece *piece = KnackGetPieceAtLoc(map, current->children[i]);
-                    if (piece->count < KNACK_NODE_MAX && piece->isLeaf) {
+                    _VenomPiece *piece = _VenomGetPieceAtLoc(map, current->children[i]);
+                    if (piece->count < VENOM_NODE_MAX && piece->isLeaf) {
                         sibling = piece;
                         siblingIndex = i;
                         break;
@@ -355,31 +355,31 @@ KnackNode * KnackInsertToNotFullPiece(KnackMap *map, KnackPiece *parent, KnackPi
                 }
                 
                 if (sibling != NULL && (siblingIndex != prevCurIdx || i != prevSibIdx)) {
-                    KnackMoveNodeToNeighbor(map, sibling, siblingIndex, current, leaf, i);
-                    KnackInsertToNotFullPiece(map, parent, current, hash, keyLength, valueLength, contentOffset, siblingIndex, i);
+                    _VenomMoveNodeToNeighbor(map, sibling, siblingIndex, current, leaf, i);
+                    _VenomInsertToNotFullPiece(map, parent, current, hash, keyLength, valueLength, contentOffset, siblingIndex, i);
                 } else {
                     uint32_t parentLoc = current->loc;
-                    KnackSplitPiece(map,parentLoc, i, leaf->loc);
-                    current = KnackGetPieceAtLoc(map, parentLoc);
+                    _VenomSplitPiece(map,parentLoc, i, leaf->loc);
+                    current = _VenomGetPieceAtLoc(map, parentLoc);
                     if (hash > current->nodes[i].hash) {
                         ++i;
                     }
-                    leaf = KnackGetPieceAtLoc(map, current->children[i]);
-                    KnackInsertToNotFullPiece(map, current, leaf, hash, keyLength, valueLength, contentOffset,KNACK_INVALID_LOC,KNACK_INVALID_LOC);
+                    leaf = _VenomGetPieceAtLoc(map, current->children[i]);
+                    _VenomInsertToNotFullPiece(map, current, leaf, hash, keyLength, valueLength, contentOffset,VENOM_INVALID_LOC,VENOM_INVALID_LOC);
                 }
             } else {
-                KnackInsertToNotFullPiece(map, current, leaf, hash, keyLength, valueLength, contentOffset,KNACK_INVALID_LOC,KNACK_INVALID_LOC);
+                _VenomInsertToNotFullPiece(map, current, leaf, hash, keyLength, valueLength, contentOffset,VENOM_INVALID_LOC,VENOM_INVALID_LOC);
             }
         }
     }
     return exsitNode;
 }
 
-KnackNode *KnackSearchNode(KnackMap *map, KnackPiece *root, uint32_t hash) {
-    KnackNode *node = NULL;
+_VenomNode *_VenomSearchNode(Venom *map, _VenomPiece *root, uint32_t hash) {
+    _VenomNode *node = NULL;
     int index= 0;
     for (int i = 0; i < root->count; i++) {
-        KnackNode *current = root->nodes + i;
+        _VenomNode *current = root->nodes + i;
         if (current->hash == hash) {
             node = current;
             index = -1;
@@ -394,91 +394,91 @@ KnackNode *KnackSearchNode(KnackMap *map, KnackPiece *root, uint32_t hash) {
     }
     
     if (index >= 0 && !root->isLeaf) {
-        KnackPiece *piece = KnackGetPieceAtLoc(map, root->children[index]);
-        node = KnackSearchNode(map, piece, hash);
+        _VenomPiece *piece = _VenomGetPieceAtLoc(map, root->children[index]);
+        node = _VenomSearchNode(map, piece, hash);
     }
     
     return node;
 }
 
-KnackMap *KnackMapInit(const char *path) {
+Venom *VenomInit(const char *path) {
     uint32_t size = 2 * PAGE_SIZE;
-    KnackMap *map = malloc(sizeof(KnackMap));
-    KnackMMPFile(map, path, size);
+    Venom *map = malloc(sizeof(Venom));
+    _VenomMMPFile(map, path, size);
     return map;
 }
 
-void KnackUpdateOrInsert(KnackMap *map, KnackPiece *parent, KnackPiece *current, uint32_t hash, const void *key, uint32_t keyLength, const void *value, uint32_t valueLength, int8_t type) {
-    KnackNode *existedNode = KnackInsertToNotFullPiece(map, parent, current, hash, keyLength, valueLength, map->header->contentUsed,KNACK_INVALID_LOC,KNACK_INVALID_LOC);
+void _VenomUpdateOrInsert(Venom *map, _VenomPiece *parent, _VenomPiece *current, uint32_t hash, const void *key, uint32_t keyLength, const void *value, uint32_t valueLength, int8_t type) {
+    _VenomNode *existedNode = _VenomInsertToNotFullPiece(map, parent, current, hash, keyLength, valueLength, map->header->contentUsed,VENOM_INVALID_LOC,VENOM_INVALID_LOC);
     if (existedNode != NULL) {
         Byte *contents = map->contents + existedNode->contentOffset;
         if (keyLength == existedNode->keyLength && memcmp(contents, key, keyLength) == 0) {//同一个key
             //处理数据的存储
 #warning to do
-            KnackAssert("to do ....");
+            _VenomAssert("to do ....");
         } else {
             //用链表的形式处理hash冲突
 #warning to do
-            KnackAssert("to do ....");
+            _VenomAssert("to do ....");
         }
     } else {
-        int writeBytes = KnackWriteContent(map, key, keyLength, value, valueLength, type, map->header->contentUsed);
+        int writeBytes = _VenomWriteContent(map, key, keyLength, value, valueLength, type, map->header->contentUsed);
         if (writeBytes > 0) {
             map->header->contentUsed += writeBytes;
         }
     }
 }
 
-void KnackMapPut(KnackMap *map, const void *key, uint32_t keyLength, const void *value, uint32_t valueLength, int8_t type) {
+void VenomPut(Venom *map, const void *key, uint32_t keyLength, const void *value, uint32_t valueLength, int8_t type) {
     if (map != NULL) {
         uint32_t hash = XXH32(key, keyLength, 0);
         
-        KnackPiece *root = map->headPiece;
+        _VenomPiece *root = map->headPiece;
         
-        if (root->count == KNACK_NODE_MAX) {
-            KnackPiece *newRoot = KnackCreateNewPiece(map, 0);
+        if (root->count == VENOM_NODE_MAX) {
+            _VenomPiece *newRoot = _VenomCreateNewPiece(map, 0);
             newRoot->children[0] = root->loc;
             //
             map->header->headLoc = newRoot->loc;
             map->headPiece = newRoot;
             //
-            KnackSplitPiece(map, newRoot->loc, 0, root->loc);
+            _VenomSplitPiece(map, newRoot->loc, 0, root->loc);
             //
             root = newRoot;
         }
-        KnackUpdateOrInsert(map, NULL, root, hash, key, keyLength, value, valueLength, type);
+        _VenomUpdateOrInsert(map, NULL, root, hash, key, keyLength, value, valueLength, type);
     }
 }
 
-const void * KnackMapGet(KnackMap *map, const void *key, uint32_t keyLength, uint32_t *valueLength, uint8_t *type) {
+const void * VenomGet(Venom *map, const void *key, uint32_t keyLength, uint32_t *valueLength, uint8_t *type) {
     if (map != NULL) {
         uint32_t hash = XXH32(key, keyLength, 0);
-        KnackNode *node = KnackSearchNode(map, map->headPiece, hash);
+        _VenomNode *node = _VenomSearchNode(map, map->headPiece, hash);
         if (node != NULL) {
-            return KnackReadContent(map, node,key,keyLength,valueLength, type);
+            return _VenomReadContent(map, node,key,keyLength,valueLength, type);
         }
     }
     return NULL;
 }
 
-void KnackRemove(KnackMap *map, uint32_t hash, const void *key, uint32_t keyLength) {
+void _VenomRemove(Venom *map, uint32_t hash, const void *key, uint32_t keyLength) {
     
 }
 
-void KnackMapRemove(KnackMap *map, const void *key, uint32_t keyLength) {
+void VenomRemove(Venom *map, const void *key, uint32_t keyLength) {
     if (map != NULL) {
         uint32_t hash = XXH32(key, keyLength, 0);
-        KnackRemove(map, hash, key, keyLength);
+        _VenomRemove(map, hash, key, keyLength);
     }
 }
 
-void KnackMapRelease(KnackMap *map) {
-    KnackUnmap(map->memory, map->header->totalSize);
+void VenomRelease(Venom *map) {
+    _VenomUnmap(map->memory, map->header->totalSize);
     close(map->fd);
     free(map);
 }
 
-void _KnackDebugPrint(KnackMap *map, KnackPiece *head) {
+void __VENOM_DEBUGPrint(Venom *map, _VenomPiece *head) {
     if (map != NULL && head->count > 0) {
         printf("level-%d:",head->loc);
         for (int i = 0; i < head->count; i++) {
@@ -489,15 +489,15 @@ void _KnackDebugPrint(KnackMap *map, KnackPiece *head) {
             for (int i = 0; i <= head->count; i++) {
                 uint32_t index = head->children[i];
                 if (index != head->loc) {
-                    KnackPiece *piece = KnackGetPieceAtLoc(map, head->children[i]);
-                    _KnackDebugPrint(map, piece);
+                    _VenomPiece *piece = _VenomGetPieceAtLoc(map, head->children[i]);
+                    __VENOM_DEBUGPrint(map, piece);
                 }
             }
         }
     }
 }
 
-void KnackDebugPrint(KnackMap *map) {
-    _KnackDebugPrint(map,map->headPiece);
+void _VENOM_DEBUGPrint(Venom *map) {
+    __VENOM_DEBUGPrint(map,map->headPiece);
     printf("====================\n");
 }

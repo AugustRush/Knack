@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		8012DA6D21B7C75600828DB7 /* Knack.c in Sources */ = {isa = PBXBuildFile; fileRef = 8012DA6921B7C75600828DB7 /* Knack.c */; };
+		8012DA6D21B7C75600828DB7 /* Venom.c in Sources */ = {isa = PBXBuildFile; fileRef = 8012DA6921B7C75600828DB7 /* Venom.c */; };
 		8012DA6E21B7C75600828DB7 /* xxhash.c in Sources */ = {isa = PBXBuildFile; fileRef = 8012DA6C21B7C75600828DB7 /* xxhash.c */; };
 		802A7EE221AE9CB800DAE02F /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 802A7EE121AE9CB800DAE02F /* main.c */; };
 /* End PBXBuildFile section */
@@ -25,11 +25,11 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		8012DA6821B7C75600828DB7 /* Knack.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Knack.h; sourceTree = "<group>"; };
-		8012DA6921B7C75600828DB7 /* Knack.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = Knack.c; sourceTree = "<group>"; };
+		8012DA6821B7C75600828DB7 /* Venom.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Venom.h; sourceTree = "<group>"; };
+		8012DA6921B7C75600828DB7 /* Venom.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = Venom.c; sourceTree = "<group>"; };
 		8012DA6B21B7C75600828DB7 /* xxhash.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = xxhash.h; sourceTree = "<group>"; };
 		8012DA6C21B7C75600828DB7 /* xxhash.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = xxhash.c; sourceTree = "<group>"; };
-		802A7EDE21AE9CB800DAE02F /* Knack */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = Knack; sourceTree = BUILT_PRODUCTS_DIR; };
+		802A7EDE21AE9CB800DAE02F /* Venom */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = Venom; sourceTree = BUILT_PRODUCTS_DIR; };
 		802A7EE121AE9CB800DAE02F /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -47,8 +47,8 @@
 		8012DA6721B7C75600828DB7 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
-				8012DA6821B7C75600828DB7 /* Knack.h */,
-				8012DA6921B7C75600828DB7 /* Knack.c */,
+				8012DA6821B7C75600828DB7 /* Venom.h */,
+				8012DA6921B7C75600828DB7 /* Venom.c */,
 				8012DA6A21B7C75600828DB7 /* xxhash */,
 			);
 			path = Sources;
@@ -66,7 +66,7 @@
 		802A7ED521AE9CB800DAE02F = {
 			isa = PBXGroup;
 			children = (
-				802A7EE021AE9CB800DAE02F /* Knack */,
+				802A7EE021AE9CB800DAE02F /* Venom */,
 				802A7EDF21AE9CB800DAE02F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -74,26 +74,26 @@
 		802A7EDF21AE9CB800DAE02F /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				802A7EDE21AE9CB800DAE02F /* Knack */,
+				802A7EDE21AE9CB800DAE02F /* Venom */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		802A7EE021AE9CB800DAE02F /* Knack */ = {
+		802A7EE021AE9CB800DAE02F /* Venom */ = {
 			isa = PBXGroup;
 			children = (
 				8012DA6721B7C75600828DB7 /* Sources */,
 				802A7EE121AE9CB800DAE02F /* main.c */,
 			);
-			path = Knack;
+			path = Venom;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		802A7EDD21AE9CB800DAE02F /* Knack */ = {
+		802A7EDD21AE9CB800DAE02F /* Venom */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 802A7EE521AE9CB800DAE02F /* Build configuration list for PBXNativeTarget "Knack" */;
+			buildConfigurationList = 802A7EE521AE9CB800DAE02F /* Build configuration list for PBXNativeTarget "Venom" */;
 			buildPhases = (
 				802A7EDA21AE9CB800DAE02F /* Sources */,
 				802A7EDB21AE9CB800DAE02F /* Frameworks */,
@@ -103,9 +103,9 @@
 			);
 			dependencies = (
 			);
-			name = Knack;
+			name = Venom;
 			productName = Knack;
-			productReference = 802A7EDE21AE9CB800DAE02F /* Knack */;
+			productReference = 802A7EDE21AE9CB800DAE02F /* Venom */;
 			productType = "com.apple.product-type.tool";
 		};
 /* End PBXNativeTarget section */
@@ -122,7 +122,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 802A7ED921AE9CB800DAE02F /* Build configuration list for PBXProject "Knack" */;
+			buildConfigurationList = 802A7ED921AE9CB800DAE02F /* Build configuration list for PBXProject "Venom" */;
 			compatibilityVersion = "Xcode 9.3";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -134,7 +134,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				802A7EDD21AE9CB800DAE02F /* Knack */,
+				802A7EDD21AE9CB800DAE02F /* Venom */,
 			);
 		};
 /* End PBXProject section */
@@ -144,7 +144,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8012DA6D21B7C75600828DB7 /* Knack.c in Sources */,
+				8012DA6D21B7C75600828DB7 /* Venom.c in Sources */,
 				8012DA6E21B7C75600828DB7 /* xxhash.c in Sources */,
 				802A7EE221AE9CB800DAE02F /* main.c in Sources */,
 			);
@@ -285,7 +285,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		802A7ED921AE9CB800DAE02F /* Build configuration list for PBXProject "Knack" */ = {
+		802A7ED921AE9CB800DAE02F /* Build configuration list for PBXProject "Venom" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				802A7EE321AE9CB800DAE02F /* Debug */,
@@ -294,7 +294,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		802A7EE521AE9CB800DAE02F /* Build configuration list for PBXNativeTarget "Knack" */ = {
+		802A7EE521AE9CB800DAE02F /* Build configuration list for PBXNativeTarget "Venom" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				802A7EE621AE9CB800DAE02F /* Debug */,
