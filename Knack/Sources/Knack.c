@@ -19,7 +19,7 @@
 #define PAGE_SIZE 4096
 #define KNACK_INVALID_LOC 0xFFFFFFFF
 #define KNACK_DEBUG 1
-
+#define KNACK_SEGMENT_LIMIT 1024*1024*16 //16M
 
 typedef uint8_t Byte;
 
@@ -41,7 +41,7 @@ typedef struct __attribute__((__packed__)) KnackPiece {
 
 typedef struct __attribute__((__packed__)) KnackHeader {
     uint32_t hash;
-    uint32_t nodeCount;
+    uint32_t keysCount;
     uint64_t totalSize;
     uint32_t headLoc;
     uint32_t pieceStart;
@@ -105,7 +105,7 @@ void KnackReset(KnackMap *map, int fd, void *ptr, uint64_t size, uint32_t validH
     memset(ptr, 0, size);
     map->header->hash = validHash;
     map->header->totalSize = size;
-    map->header->nodeCount = 0;
+    map->header->keysCount = 0;
     map->header->headLoc = 0;
     map->header->pieceStart = sizeof(KnackHeader);
     map->header->pieceCount = 1;
@@ -129,6 +129,7 @@ void KnackConstruct(KnackMap *map, int fd, void *ptr, uint64_t size) {
     map->contents = map->memory + map->header->contentStart;
 }
 
+#warning 需要分段t映射，否则文件过大会失败
 void *KnackMemoryMap(int fd, uint64_t size) {
     void *ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (ptr == MAP_FAILED) {
@@ -472,6 +473,8 @@ void KnackMapRemove(KnackMap *map, const void *key, uint32_t keyLength) {
 }
 
 void KnackMapRelease(KnackMap *map) {
+    KnackUnmap(map->memory, map->header->totalSize);
+    close(map->fd);
     free(map);
 }
 

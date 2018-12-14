@@ -22,14 +22,15 @@ void printTime()      //直接调用这个函数就行了，返回值最好是in
 
 int main(int argc, const char * argv[]) {
     // insert code here...
-    KnackMap *map = KnackMapInit("/Users/pingweiliu/Desktop/KNACK_DEF");
     
+    KnackMap *map = KnackMapInit("/Users/pingweiliu/Desktop/KNACK_DEF");
+
     uint32_t testNum = 10000000;
     uint32_t *numbers = malloc(sizeof(uint32_t) * testNum);
     for (int i = 0; i < testNum; i++) {
         numbers[i] = arc4random();
     }
-    
+
     printTime();
     for (int i = 0; i < testNum; i++) {
         uint32_t num = numbers[i];
@@ -46,8 +47,8 @@ int main(int argc, const char * argv[]) {
 //        printf("%u  %d  %u\n",v,type,length);
     }
     printTime();
-    
-    KnackMapFree(map);
+
+    KnackMapRelease(map);
     free(numbers);
 //    KnackDebugPrint(map);
     return 0;
