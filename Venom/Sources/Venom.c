@@ -23,6 +23,11 @@
 
 typedef uint8_t Byte;
 
+typedef struct VenomRange {
+    uint32_t start;
+    uint32_t length;
+} VenomRange;
+
 typedef struct __attribute__((__packed__)) _VenomNode {
     uint32_t hash;
     uint32_t keyLength;
@@ -36,7 +41,6 @@ typedef struct __attribute__((__packed__)) _VenomPiece {
     uint32_t loc;
     _VenomNode nodes[VENOM_ORDER - 1];
     uint32_t children[VENOM_ORDER];
-    
 } _VenomPiece;
 
 typedef struct __attribute__((__packed__)) _VenomHeader {
@@ -48,6 +52,10 @@ typedef struct __attribute__((__packed__)) _VenomHeader {
     uint32_t pieceCount;
     uint32_t contentStart;
     uint32_t contentUsed;
+    uint8_t removePieceCount;
+    uint8_t removeContentRangeCount;
+    uint32_t removePieceIndexes[100];
+    VenomRange removeContentRanges[100];
 } _VenomHeader;
 
 typedef struct Venom {
@@ -89,7 +97,7 @@ uint32_t _VenomFileValidHash() {
 }
 
 int _VenomFileIsValidate(const void *ptr) {
-    uint32_t validFileHash = XXH32("KNAC_FILE_VALID_HASH", 20, 0);
+    uint32_t validFileHash = _VenomFileValidHash();
     if (memcmp(ptr, &validFileHash, sizeof(uint32_t)) == 0) {
         return validFileHash;
     }
@@ -111,6 +119,8 @@ void _VenomReset(Venom *map, int fd, void *ptr, uint64_t size, uint32_t validHas
     map->header->pieceCount = 1;
     map->header->contentStart = PAGE_SIZE;
     map->header->contentUsed = 0;
+    map->header->removePieceCount = 0;
+    map->header->removeContentRangeCount = 0;
     map->pieces = (_VenomPiece *)(map->memory + map->header->pieceStart);
     map->headPiece = map->pieces + map->header->headLoc;
     map->headPiece->isLeaf = 1;
@@ -461,14 +471,65 @@ const void * VenomGet(Venom *map, const void *key, uint32_t keyLength, uint32_t 
     return NULL;
 }
 
-void _VenomRemove(Venom *map, uint32_t hash, const void *key, uint32_t keyLength) {
+void _VenomRemovePieceAtIndex(Venom *map, uint32_t index) {
+    _VenomHeader *header = map->header;
+    if (header->removePieceCount < 100) {
+        if (header->removePieceCount == 0) {
+            header->removePieceIndexes[0] = index;
+        } else {
+            int insert = 0;
+            for (int i = 0; i < header->removePieceCount; i++) {
+                if (header->removePieceIndexes[i] > index) {
+                    insert = i;
+                }
+            }
+            
+            int moveCount = header->removePieceCount - insert;
+            if (moveCount > 0) {
+                memmove(header->removePieceIndexes + insert + 1, header->removePieceIndexes + insert, sizeof(uint32_t));
+            }
+        }
+    }
     
+    if (header->removePieceCount >= 100) {
+        printf("need remove piece and reset loc");
+    }
+}
+
+void _VenomRemoveContent(Venom *map, uint32_t start, uint32_t length) {
+    
+}
+
+void _VenomRecursiveRemove(Venom *map, uint32_t hash, const void *key, uint32_t keyLength) {
+    _VenomPiece *piece = map->headPiece;
+    int index = 0;
+    while (index < piece->count && hash > piece->nodes[index].hash) {
+        index++;
+    }
+    
+    if (index < piece->count && piece->nodes[index].hash == hash) {
+//        _VenomPiece *left, right;
+        //remove content
+        _VenomNode *node = piece->nodes + index;
+        _VenomRemoveContent(map, node->contentOffset, node->keyLength + node->valueLength + 1);
+        //remove node
+        if (piece->isLeaf) {
+            int moveCount = piece->count - index - 1;
+            if (moveCount > 0) {
+                memmove(piece->nodes + index, piece->nodes + index + 1, moveCount * VENOMNODE_SIZE);
+            }
+            piece->count -= 1;
+            if (piece->count == 0) {
+                _VenomRemovePieceAtIndex(map, piece->loc);
+            }
+        }
+    }
 }
 
 void VenomRemove(Venom *map, const void *key, uint32_t keyLength) {
     if (map != NULL) {
         uint32_t hash = XXH32(key, keyLength, 0);
-        _VenomRemove(map, hash, key, keyLength);
+        _VenomRecursiveRemove(map, hash, key, keyLength);
     }
 }
 

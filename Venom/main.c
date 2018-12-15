@@ -25,7 +25,7 @@ int main(int argc, const char * argv[]) {
     
     Venom *map = VenomInit("/Users/pingweiliu/Desktop/_Venom_DEF");
 
-    uint32_t testNum = 10000000;
+    uint32_t testNum = 150;
     uint32_t *numbers = malloc(sizeof(uint32_t) * testNum);
     for (int i = 0; i < testNum; i++) {
         numbers[i] = arc4random();
@@ -47,9 +47,16 @@ int main(int argc, const char * argv[]) {
 //        printf("%u  %d  %u\n",v,type,length);
     }
     printTime();
+    
+    printTime();
+    for (int i = 0; i < testNum; i++) {
+        uint32_t num = numbers[i];
+        VenomRemove(map, &num, 4);
+    }
+    printTime();
 
+//    VenomDebugPrint(map);
     VenomRelease(map);
     free(numbers);
-//    _VenomDebugPrint(map);
     return 0;
 }
