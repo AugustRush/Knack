@@ -478,7 +478,7 @@ void VenomRelease(Venom *map) {
     free(map);
 }
 
-void __VENOM_DEBUGPrint(Venom *map, _VenomPiece *head) {
+void _Venom_DebugPrint(Venom *map, _VenomPiece *head) {
     if (map != NULL && head->count > 0) {
         printf("level-%d:",head->loc);
         for (int i = 0; i < head->count; i++) {
@@ -490,14 +490,14 @@ void __VENOM_DEBUGPrint(Venom *map, _VenomPiece *head) {
                 uint32_t index = head->children[i];
                 if (index != head->loc) {
                     _VenomPiece *piece = _VenomGetPieceAtLoc(map, head->children[i]);
-                    __VENOM_DEBUGPrint(map, piece);
+                    _Venom_DebugPrint(map, piece);
                 }
             }
         }
     }
 }
 
-void _VENOM_DEBUGPrint(Venom *map) {
-    __VENOM_DEBUGPrint(map,map->headPiece);
+void VenomDebugPrint(Venom *map) {
+    _Venom_DebugPrint(map,map->headPiece);
     printf("====================\n");
 }
