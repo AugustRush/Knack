@@ -20,17 +20,15 @@ void printTime()      //直接调用这个函数就行了，返回值最好是in
     printf("%ld  %d\n",tv.tv_sec,tv.tv_usec);
 }
 
-int main(int argc, const char * argv[]) {
-    // insert code here...
-    
+void test1() {
     Venom *map = VenomInit("/Users/pingweiliu/Desktop/_Venom_DEF");
-
-    uint32_t testNum = 150;
+    
+    uint32_t testNum = 15000;
     uint32_t *numbers = malloc(sizeof(uint32_t) * testNum);
     for (int i = 0; i < testNum; i++) {
         numbers[i] = arc4random();
     }
-
+    
     printTime();
     for (int i = 0; i < testNum; i++) {
         uint32_t num = numbers[i];
@@ -44,7 +42,7 @@ int main(int argc, const char * argv[]) {
         const void *value = VenomGet(map, &num, 4, &length, &type);
         uint32_t v = 0;
         memcpy(&v, value, 4);
-//        printf("%u  %d  %u\n",v,type,length);
+        //        printf("%u  %d  %u\n",v,type,length);
     }
     printTime();
     
@@ -54,9 +52,14 @@ int main(int argc, const char * argv[]) {
         VenomRemove(map, &num, 4);
     }
     printTime();
-
-//    VenomDebugPrint(map);
+    
+    //    VenomDebugPrint(map);
     VenomRelease(map);
     free(numbers);
+}
+
+int main(int argc, const char * argv[]) {
+    // insert code here...
+    test1();
     return 0;
 }

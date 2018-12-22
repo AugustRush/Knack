@@ -19,14 +19,9 @@
 #define PAGE_SIZE 4096
 #define VENOM_INVALID_LOC 0xFFFFFFFF
 #define VENOM_DEBUG 1
-#define VENOM_SEGMENT_LIMIT 1024*1024*16 //16M
+#define VENOM_SEGMENT_LIMIT 1024*1024*100 //100M
 
 typedef uint8_t Byte;
-
-typedef struct VenomRange {
-    uint32_t start;
-    uint32_t length;
-} VenomRange;
 
 typedef struct __attribute__((__packed__)) _VenomNode {
     uint32_t hash;
@@ -53,9 +48,6 @@ typedef struct __attribute__((__packed__)) _VenomHeader {
     uint32_t contentStart;
     uint32_t contentUsed;
     uint8_t removePieceCount;
-    uint8_t removeContentRangeCount;
-    uint32_t removePieceIndexes[100];
-    VenomRange removeContentRanges[100];
 } _VenomHeader;
 
 typedef struct Venom {
@@ -120,7 +112,6 @@ void _VenomReset(Venom *map, int fd, void *ptr, uint64_t size, uint32_t validHas
     map->header->contentStart = PAGE_SIZE;
     map->header->contentUsed = 0;
     map->header->removePieceCount = 0;
-    map->header->removeContentRangeCount = 0;
     map->pieces = (_VenomPiece *)(map->memory + map->header->pieceStart);
     map->headPiece = map->pieces + map->header->headLoc;
     map->headPiece->isLeaf = 1;
@@ -319,10 +310,6 @@ const void * _VenomReadContent(const Venom *map, const _VenomNode *node, const v
     return NULL;
 }
 
-void _VenomRepalceNode(Venom *map, _VenomNode *node) {
-    
-}
-
 _VenomNode * _VenomInsertToNotFullPiece(Venom *map, _VenomPiece *parent, _VenomPiece *current, uint32_t hash, uint32_t keyLength, uint32_t valueLength, uint32_t contentOffset, uint32_t prevSibIdx, uint32_t prevCurIdx) {
     int i = 0;
     _VenomNode *exsitNode = NULL;
@@ -472,28 +459,7 @@ const void * VenomGet(Venom *map, const void *key, uint32_t keyLength, uint32_t 
 }
 
 void _VenomRemovePieceAtIndex(Venom *map, uint32_t index) {
-    _VenomHeader *header = map->header;
-    if (header->removePieceCount < 100) {
-        if (header->removePieceCount == 0) {
-            header->removePieceIndexes[0] = index;
-        } else {
-            int insert = 0;
-            for (int i = 0; i < header->removePieceCount; i++) {
-                if (header->removePieceIndexes[i] > index) {
-                    insert = i;
-                }
-            }
-            
-            int moveCount = header->removePieceCount - insert;
-            if (moveCount > 0) {
-                memmove(header->removePieceIndexes + insert + 1, header->removePieceIndexes + insert, sizeof(uint32_t));
-            }
-        }
-    }
     
-    if (header->removePieceCount >= 100) {
-        printf("need remove piece and reset loc");
-    }
 }
 
 void _VenomRemoveContent(Venom *map, uint32_t start, uint32_t length) {
